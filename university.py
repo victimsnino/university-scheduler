@@ -3,11 +3,12 @@ import numpy as np
 from general_utils import group_prefix, type_prefix, RoomType
 
 class Lesson:
-    def __init__(self, lesson_name, group_indexes, count, lesson_type):
+    def __init__(self, lesson_name, group_indexes, count, lesson_type, teacher_indexes):
         self.lesson_name    = lesson_name
         self.group_indexes  = group_indexes
         self.count          = count
         self.lesson_type    = RoomType(lesson_type)
+        self.teacher_indexes=teacher_indexes
 
     def __eq__(self, other):
         return self.full_name() == other.full_name()
@@ -17,7 +18,7 @@ class Lesson:
         return self.lesson_name + group_prefix + str(self.group_indexes)  + type_prefix + str(self.lesson_type)
 
     def __str__(self):
-        return self.full_name() + ' Count: ' + str(self.count)
+        return self.full_name() + ' Count: ' + str(self.count) + ' Teachers: ' + str(self.teacher_indexes)
     
     def __repr__(self):
         return self.__str__()
@@ -52,11 +53,22 @@ class Group:
     def __repr__(self):
         return self.__str__()
 
+class Teacher:
+    def __init__(self, full_name):
+        self.name = full_name
+
+    def __str__(self):
+        return self.name
+
+    def __repr__(self):
+        return self.__str__()
+
 class University:
     def __init__(self):
         self.corpuses = {}
         self.lessons = []
         self.groups = []
+        self.teachers = []
 
     def add_room(self, corpus_number, room_number, room_type, size):
         for _ in range(2):
@@ -64,37 +76,65 @@ class University:
             if corpus is None:
                 self.corpuses[corpus_number] = []
 
+        for room in corpus:
+            if room.room_number == room_number:
+                raise BaseException("Room %d in corpus %d just exist!" % (room_number, corpus_number))
+
         corpus.append(Room(room_number, room_type, size))
 
     def add_group(self, group_name, size):
         for group in self.groups:
             if group.group_name == group_name:
-                print("WARNING: Group %s just exist! " % group_name)
-                return
+                raise BaseException("WARNING: Group %s just exist! " % group_name)
         
         self.groups.append(Group(group_name, size))
 
-    def add_lesson(self, lesson_name, group_names, count, lesson_type):
+    def add_lesson(self, lesson_name, group_names, count, lesson_type, teachers):
+        '''
+        Add lesson for study plan. \n
+        Lesson name used as uniq index. \n
+        Groups must have created for this moment! \n
+        Teachers - list of compatible teachers for this lesson.
+        '''
         group_indexes = []
         for group_i in range(len(self.groups)):
             if self.groups[group_i].group_name in group_names:
                 group_indexes.append(group_i)
 
-        if len(group_indexes) == 0:
+        if len(group_indexes) != len(group_names):
             raise BaseException("Some of groups from %s don't exist!" % group_names)
+        
+        teacher_indexes = []
+        for teacher_name in teachers:
+            find = False
+            for teacher_i in range(len(self.teachers)):
+                if self.teachers[teacher_i].name == teacher_name:
+                    find = True
+                    teacher_indexes.append(teacher_i)
+                    break
 
-        new_lesson = Lesson(lesson_name, group_indexes, count, lesson_type)
+            if find == False:
+                raise BaseException('Teacher %s doesn\'t exist!' % teacher_name)
+        
+        new_lesson = Lesson(lesson_name, group_indexes, count, lesson_type, teacher_indexes)
         for i in range(len(self.lessons)):
             lesson = self.lessons[i]
             if lesson == new_lesson:
-                lesson.count += count
-                return
+                raise BaseException('Lesson %s just exist!' % lesson)
 
         self.lessons.append(new_lesson)
+
+    def add_teacher(self, name):
+        for teacher in self.teachers:
+            if teacher.name == name:
+                raise BaseException('Teacher %s just exist!' % name)
+
+        self.teachers.append(Teacher(name))
 
     def __str__(self):
         return "*****************************************************\n" + \
                 "*** University INFO: *** \n" + \
                 "Rooms by corpuses: " + str(self.corpuses) + "\n" + \
                 "Lessons: " + str(self.lessons) + "\n" + \
+                "Teachers: " + str(self.teachers) + "\n" + \
                 "*****************************************************"
