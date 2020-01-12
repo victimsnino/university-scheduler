@@ -1,21 +1,31 @@
 import cplex
 import re
-from general_utils import debug, time_slots_per_day, RoomType, time_slot_format, lesson_prefix
+from general_utils import debug, time_slots_per_day, RoomType, time_slot_format, lesson_prefix, group_prefix, timeslot_prefix
 from university import University, Lesson
 
-def _add_constraint(my_model, variables, sense, value):
-    debug(str(variables) + str(sense) + str(value))
+def _add_constraint(my_model, indexes_or_variables, sense, value):
+    debug(str(indexes_or_variables) + str(sense) + str(value))
 
     valid_operations = ["<=", ">=", "=="]
     senses = ["L", "G", "E"]
     if sense not in valid_operations:
         raise BaseException("Not valid operation! %s" % sense)
 
-    my_model.linear_constraints.add(lin_expr = [cplex.SparsePair(ind = variables, 
-                                                                 val = [1.0]*len(variables))], 
+    my_model.linear_constraints.add(lin_expr = [cplex.SparsePair(ind = indexes_or_variables, 
+                                                                 val = [1.0]*len(indexes_or_variables))], 
                                     senses = senses[valid_operations.index(sense)],
                                     rhs = [value])
 
+def _get_indexes_by_name(variables, search, is_just_regex = False):
+    if is_just_regex == False:
+        search = r'.*' + search.replace('[', r'\[').replace(']', r'\]') + r'.*'
+    debug('_get_indexes_by_name ' + search)
+    indexes = []
+    for name in variables.get_names():
+        if not re.search(search, name) is None:
+            indexes.append(variables.get_indices(name))
+    return indexes
+    
 class Solver:
     def __init__(self, university):
         self.model = cplex.Cplex()
@@ -50,25 +60,32 @@ class Solver:
                     if len(indexes) != 0:
                         _add_constraint(self.model, indexes, '<=', 1)
 
-    def __fill_lessons_constraints(self):
+    def __constraint_total_count_of_lessons(self):
         ''' 
         Every lesson should have a count of lessons, which we request \n
         Therefore we should add constraints for it (count of all lessons in timeslots == requested)
         '''
-        names = self.model.variables.get_names()
-
         for lesson in self.university.lessons:
-            indexes = []
-            for name in names:
-                if lesson_prefix+'_'+lesson.full_name() in name:
-                    indexes.append(self.model.variables.get_indices(name))
-            _add_constraint(self.model, indexes, '==', lesson.count)
+            _add_constraint(self.model, _get_indexes_by_name(self.model.variables, lesson_prefix+lesson.full_name()), '==', lesson.count)
         
         debug(self.model.variables.get_names())
 
+    def __constraint_group_only_in_one_room_per_timeslot(self):
+        for group_i in range(len(self.university.groups)):
+            for timeslot in range(time_slots_per_day):
+                _add_constraint(self.model, _get_indexes_by_name(self.model.variables,  r'.*'           + \
+                                                            timeslot_prefix + \
+                                                            str(timeslot)   + \
+                                                            r'.*'           + \
+                                                            group_prefix    + \
+                                                            r'\[.*,? ?'     + \
+                                                            str(group_i)    + \
+                                                            r',? ?.*\].*'       , True), '<=', 1)
+
     def solve(self):
         self.__fill_lessons_to_time_slots()
-        self.__fill_lessons_constraints()
+        self.__constraint_total_count_of_lessons()
+        self.__constraint_group_only_in_one_room_per_timeslot()
 
         self.model.set_results_stream(None) # ignore standart useless output
         self.model.solve()

@@ -14,7 +14,7 @@ class Lesson:
 
     def full_name(self):
         ''' Lesson name + group name. Used as uniq index '''
-        return self.lesson_name + '_' + group_prefix + '_' + str(self.group_indexes) + '_' + type_prefix + '_'+str(self.lesson_type)
+        return self.lesson_name + group_prefix + str(self.group_indexes)  + type_prefix + str(self.lesson_type)
 
     def __str__(self):
         return self.full_name() + ' Count: ' + str(self.count)

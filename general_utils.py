@@ -6,14 +6,19 @@ time_slots_per_day = 5
 
 
 # Some constants
-corpus_prefix   = 'corpus'
-room_prefix     = 'room'
-timeslot_prefix = 'timeslot'
-lesson_prefix   = 'lesson'
-group_prefix    = 'groupids'
-type_prefix     = 'type'
+corpus_prefix   = '_corpus_'
+room_prefix     = '_room_'
+timeslot_prefix = '_timeslot_'
+lesson_prefix   = '_lesson_'
+group_prefix    = '_groupids_'
+type_prefix     = '_type_'
 
-time_slot_format = corpus_prefix+"_%d_"+room_prefix+ "_%d_" + timeslot_prefix+ "_%d_" + lesson_prefix + "_%s_" + group_prefix + "_%s_" + type_prefix + "_%s"
+time_slot_format = corpus_prefix    +   "%d"    +\
+                   room_prefix      +   "%d"    +\
+                   timeslot_prefix  +   "%d"    +\
+                   lesson_prefix    +   "%s"    +\
+                   group_prefix     +   "%s"    +\
+                   type_prefix      +   "%s"
 
 class RoomType(Flag):
     COMPUTER    = 1
