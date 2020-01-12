@@ -20,9 +20,16 @@ time_slot_format = corpus_prefix    +   "%d"    +\
                    group_prefix     +   "%s"    +\
                    type_prefix      +   "%s"
 
+corpus_corpus_prefix = '_in_corp_'
+corpus_group_prefix = '_group_'
+corpus_tracker_format = corpus_corpus_prefix    +   "%d"    +\
+                        corpus_group_prefix     +   "%s"
+
+
 class RoomType(Flag):
     COMPUTER    = 1
     LECTURE     = 2
+    PRACTICE    = 4
 
 def debug(string):
     global DEBUG_PRINT
