@@ -28,7 +28,6 @@ Done:
 
 if __name__ == "__main__":
     set_debug('--debug' in sys.argv)
-    global_config.time_slots_per_day_available = 10
 
     university = University()
 

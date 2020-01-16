@@ -30,8 +30,11 @@ def _get_indexes_by_name(variables, search, is_just_regex = False):
             indexes.append(variables.get_indices(name))
     return indexes
 
-def _get_indexes_of_timeslots_by_filter(variables, day = None, corpus = None, room = None, timeslot = None, lesson = None, group_id = None, type = None, teacher_id = None):
+def _get_indexes_of_timeslots_by_filter(variables, week = None, day = None, corpus = None, room = None, timeslot = None, lesson = None, group_id = None, type = None, teacher_id = None):
     search = r'.*'
+    if not week is None:
+        search += week_prefix + str(week)
+        search += r'.*'
     if not day is None:
         search += day_prefix + str(day)
         search += r'.*'
@@ -75,29 +78,30 @@ class Solver:
         ''' 
         for corpus_i in self.university.corpuses:
             for room in self.university.corpuses[corpus_i]:
-                for day_i in range(global_config.study_days):
-                    for time_slot in range(global_config.time_slots_per_day_available):
-                        indexes = []
-                        for lesson in self.university.lessons:
-                            if RoomType(lesson.lesson_type) not in RoomType(room.room_type):
-                                debug("Lesson skipped by TYPE: lesson %s room %s" % (lesson, room))
-                                continue
+                for week_i in range(global_config.study_weeks):
+                    for day_i in range(global_config.study_days):
+                        for time_slot in range(global_config.time_slots_per_day_available):
+                            indexes = []
+                            for lesson in self.university.lessons:
+                                if RoomType(lesson.lesson_type) not in RoomType(room.room_type):
+                                    debug("Lesson skipped by TYPE: lesson %s room %s" % (lesson, room))
+                                    continue
 
-                            if room.size < lesson.total_size(self.university.groups):
-                                debug("Room size < lesson size: lesson %s room %s" % (lesson, room))
-                                continue
+                                if room.size < lesson.total_size(self.university.groups):
+                                    debug("Room size < lesson size: lesson %s room %s" % (lesson, room))
+                                    continue
 
-                            for teacher_i in lesson.teacher_indexes:
-                                indexes.append(self.model.variables.add(obj=[0],
-                                                    lb=[0], 
-                                                    ub=[1],
-                                                    types=[self.model.variables.type.integer],
-                                                    names=[time_slot_format % ( day_i, corpus_i, room.room_number, time_slot, lesson.lesson_name, 
-                                                                                str(lesson.group_indexes), str(lesson.lesson_type), teacher_i)])[0])
-                            
-                        # each time-slot can have only 1 lesson
-                        if len(indexes) != 0:
-                            _add_constraint(self.model, indexes, '<=', 1)
+                                for teacher_i in lesson.teacher_indexes:
+                                    indexes.append(self.model.variables.add(obj=[0],
+                                                        lb=[0], 
+                                                        ub=[1],
+                                                        types=[self.model.variables.type.integer],
+                                                        names=[time_slot_format % (week_i, day_i, corpus_i, room.room_number, time_slot, lesson.lesson_name, 
+                                                                                    str(lesson.group_indexes), str(lesson.lesson_type), teacher_i)])[0])
+                                
+                            # each time-slot can have only 1 lesson
+                            if len(indexes) != 0:
+                                _add_constraint(self.model, indexes, '<=', 1)
 
         self.__fill_dummy_variables_for_tracking_corpuses()
             
@@ -107,21 +111,23 @@ class Solver:
         '''
         for container, format_out, column in self.__get_groups_teachers_list():
             for corpus_i in self.university.corpuses:
-                for day_i in range(global_config.study_days):
-                    for ith in range(len(container)):
-                        corpus_tracker_index = [self.model.variables.add(obj=[0],
-                                                                        lb=[0], 
-                                                                        ub=[1],
-                                                                        types=[self.model.variables.type.integer],
-                                                                        names=[format_out % ( corpus_i, day_i, ith)])[0]]
+                for week_i in range(global_config.study_weeks):
+                    for day_i in range(global_config.study_days):
+                        for ith in range(len(container)):
+                            corpus_tracker_index = [self.model.variables.add(obj=[0],
+                                                                            lb=[0], 
+                                                                            ub=[1],
+                                                                            types=[self.model.variables.type.integer],
+                                                                            names=[format_out % ( corpus_i, week_i, day_i, ith)])[0]]
 
-                        lections_indexes = eval('_get_indexes_of_timeslots_by_filter(self.model.variables, day = day_i, corpus = corpus_i, %s=ith)' % column)
+                            lections_indexes = eval('_get_indexes_of_timeslots_by_filter(self.model.variables, week=week_i, \
+                                                    day = day_i, corpus = corpus_i, %s=ith)' % column)
 
-                        _add_constraint(self.model, lections_indexes + corpus_tracker_index, '<=', 0, 
-                                        [1]*len(lections_indexes)+[-1*global_config.time_slots_per_day_available])
+                            _add_constraint(self.model, lections_indexes + corpus_tracker_index, '<=', 0, 
+                                            [1]*len(lections_indexes)+[-1*global_config.time_slots_per_day_available])
 
-                        _add_constraint(self.model, lections_indexes + corpus_tracker_index, '>=', -1*(global_config.time_slots_per_day_available-1), 
-                                        [1]*len(lections_indexes)+[-1*global_config.time_slots_per_day_available])
+                            _add_constraint(self.model, lections_indexes + corpus_tracker_index, '>=', -1*(global_config.time_slots_per_day_available-1), 
+                                            [1]*len(lections_indexes)+[-1*global_config.time_slots_per_day_available])
                                 
     def __constraint_total_count_of_lessons(self):
         ''' 
@@ -136,24 +142,26 @@ class Solver:
     def __constraint_group_or_teacher_only_in_one_room_per_timeslot(self):
         for container, _, column in self.__get_groups_teachers_list():
             for ith in range(len(container)):
-                for day_i in range(global_config.study_days):
-                    for timeslot in range(global_config.time_slots_per_day_available):
-                        _add_constraint(self.model, eval('_get_indexes_of_timeslots_by_filter(self.model.variables, day=day_i, timeslot=timeslot, %s=ith)' % column), '<=', 1)
+                for week_i in range(global_config.study_weeks):
+                    for day_i in range(global_config.study_days):
+                        for timeslot in range(global_config.time_slots_per_day_available):
+                            _add_constraint(self.model, eval('_get_indexes_of_timeslots_by_filter(self.model.variables, week=week_i, \
+                                                            day=day_i, timeslot=timeslot, %s=ith)' % column), '<=', 1)
 
     def __constraint_ban_changing_corpus_for_groups_or_teachers_during_day(self):
         for container, format_out, _ in self.__get_groups_teachers_list():
-            for day_i in range(global_config.study_days):
-                for ith in range(len(container)):
-                    indexes = []
-                    for corpus_i in self.university.corpuses:
-                        indexes += _get_indexes_by_name(self.model.variables, format_out % ( corpus_i, day_i, ith))
+            for week_i in range(global_config.study_weeks):
+                for day_i in range(global_config.study_days):
+                    for ith in range(len(container)):
+                        indexes = []
+                        for corpus_i in self.university.corpuses:
+                            indexes += _get_indexes_by_name(self.model.variables, format_out % ( corpus_i, week_i, day_i, ith))
 
-                    _add_constraint(self.model, indexes, '<=', 1)
+                        _add_constraint(self.model, indexes, '<=', 1)
 
     def solve(self):
         self.__fill_lessons_to_time_slots()
 
-        print(len(self.model.variables.get_names()))
         self.__constraint_total_count_of_lessons()
         self.__constraint_group_or_teacher_only_in_one_room_per_timeslot()
         self.__constraint_ban_changing_corpus_for_groups_or_teachers_during_day()
@@ -186,9 +194,9 @@ class Solver:
 
             parsed = finded[0]
             debug(names[i] + '\t\t-> \t' +  str(parsed))
-            print('Day %s Corpus %s Room %s TS %s Lesson %s Type: %s Teacher: %s GroupIDs %s' % 
-            (parsed[0], parsed[1], parsed[2], parsed[3], parsed[4], parsed[6].split('.')[1], self.university.teachers[int(parsed[7])], parsed[5]))
-
+            print('Week %s Day %s Corpus %s Room %s TS %s Lesson %s Type: %s Teacher: %s GroupIDs %s' % 
+            (parsed[0], parsed[1], parsed[2], parsed[3], parsed[4], parsed[5], 
+            parsed[7].split('.')[1], self.university.teachers[int(parsed[8])], parsed[6]))
 
     def __get_groups_teachers_list(self):
         ''' Returns tuple of (container, format for corpus tracking, column for filter) '''
