@@ -184,6 +184,8 @@ class Solver:
         values = self.model.solution.get_values()
         template = time_slot_format.replace("%d", r"(\d+)").replace("%s", "(.*)")
         debug(template)
+
+        by_group = {}
         for i in range(len(values)):
             if values[i] == 0:
                 continue
@@ -193,10 +195,39 @@ class Solver:
                 continue
 
             parsed = finded[0]
-            debug(names[i] + '\t\t-> \t' +  str(parsed))
-            print('Week %s Day %s Corpus %s Room %s TS %s Lesson %s Type: %s Teacher: %s GroupIDs %s' % 
-            (parsed[0], parsed[1], parsed[2], parsed[3], parsed[4], parsed[5], 
-            parsed[7].split('.')[1], self.university.teachers[int(parsed[8])], parsed[6]))
+            week, day, corpus, room, ts, lesson,  group_ids,  _type, teacher = parsed
+            week = int(week)
+            day = int(day)
+            ts = int(ts)
+
+            #print('Week %s Day %s Corpus %s Room %s TS %s Lesson %s Type: %s Teacher: %s GroupIDs %s' % 
+            #(week, day, corpus, room, ts, lesson, _type, self.university.teachers[int(teacher)], group_ids))
+
+            temp = by_group
+            if not group_ids in temp:
+                temp[group_ids] = {}
+
+            temp = temp[group_ids]
+            if not week in temp:
+                temp[week] = {}
+
+            temp = temp[week]
+            if not day in temp:
+                temp[day] = {}
+
+            temp = temp[day]
+            if not ts in temp:
+                temp[ts] = {}
+
+            temp[ts] = [int(corpus), int(room), lesson, _type, int(teacher)]
+
+        for group, weeks in sorted(by_group.items()):
+            for week, days in sorted(weeks.items()):
+                for day, tss in sorted(days.items()):
+                    for ts, listt in sorted(tss.items()):
+                        corpus, room, lesson, _type, teacher = listt
+                        print("Groups %s \t Week %d \t Day %d \t Corpus %d \t TS %d \t room %d \t type %s\t\t teacher %s" % 
+                              (group, week, day, corpus, ts, room, _type, self.university.teachers[teacher]))
 
     def __get_groups_teachers_list(self):
         ''' Returns tuple of (container, format for corpus tracking, column for filter) '''
