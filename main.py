@@ -64,7 +64,7 @@ if __name__ == "__main__":
     university.add_lesson("матан", ['16-pmi'], 4, RoomType.PRACTICE, ['Чистяков В В', 'Фейковый Матанщик'])
     university.add_lesson("матан", ['17-pmi'], 3, RoomType.PRACTICE, ['Чистяков В В', 'Фейковый Матанщик'])
 
-    pr_lection = university.add_lesson("прога", ['16-pi'], 10, RoomType.LECTURE,  ['Бычков И С'])
+    pr_lection = university.add_lesson("прога", ['16-pi'], 5, RoomType.LECTURE,  ['Бычков И С'])
     pr_practice = university.add_lesson("прога", ['16-pi'], 10, RoomType.COMPUTER, ['Бычков И С'])
 
     pr_practice.should_be_after_lessons(pr_lection)

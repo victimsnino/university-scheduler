@@ -195,26 +195,39 @@ class Solver:
 
     def __local_constraint_lesson_after_another_lesson(self):
         '''
-        Some lessons should be after some another. For example, practice should be after lection. Therefore we should track it. \t
-        Currnet code works this way: \t
-        1) Find all indexes of original lesson and each for lessons, that should be before
-        2) Calculate some 'cost' (ts+max_ts*(day+week*day))
-        3) sum of costs original should be >= sum of costs lessons, that should be before
+        Some lessons should be after some another. For example, practice should be after lection. Therefore we should track it.
         '''
         for lesson in self.university.lessons:
             if len(lesson.should_be_after) == 0:
                 continue
 
             original_indexes = _get_indexes_by_name(self.model.variables, lesson.full_name())
-            original_val = [_calculate_cost_of_lesson_by_position(self.model.variables.get_names(i)) 
-                            for i in original_indexes]
+            original_indexes = sorted(original_indexes, key=lambda index: _calculate_cost_of_lesson_by_position(self.model.variables.get_names(index)))
+            original_costs   = [_calculate_cost_of_lesson_by_position(self.model.variables.get_names(i)) for i in original_indexes]
 
             for index_after in lesson.should_be_after:
                 should_be_after_this = self.university.lessons[index_after]
                 should_be_after_indexes = _get_indexes_by_name(self.model.variables, should_be_after_this.full_name())
-                should_be_after_val = [-1*_calculate_cost_of_lesson_by_position(self.model.variables.get_names(i)) 
-                                        for i in should_be_after_indexes]
-                _add_constraint(self.model, original_indexes+should_be_after_indexes, '>=', 0, original_val+should_be_after_val)
+                should_be_after_indexes = sorted(should_be_after_indexes, key=lambda index: _calculate_cost_of_lesson_by_position(self.model.variables.get_names(index)))
+                after_costs   = [_calculate_cost_of_lesson_by_position(self.model.variables.get_names(i)) for i in should_be_after_indexes]
+                set_after_costs = sorted(list(set(after_costs)))
+                for cost in set_after_costs:
+                    after_till_index = 0
+                    while after_till_index < len(after_costs):
+                        if after_costs[after_till_index] > cost:
+                            break;
+                        after_till_index += 1
+
+                    original_till_index = 0
+                    while original_till_index < len(original_costs):
+                        if original_costs[original_till_index] > cost:
+                            break;
+                        original_till_index += 1
+                    
+                    _add_constraint(self.model, should_be_after_indexes[:after_till_index]+original_indexes[:original_till_index], '>=', 0,
+                                    [float(lesson.count/should_be_after_this.count)]*after_till_index+[-1]*original_till_index)
+
+
 
     def solve(self):
         self.__fill_lessons_to_time_slots()
