@@ -2,6 +2,7 @@ import cplex
 import re
 from general_utils import * 
 from university import University, Lesson
+import copy
 
 def _add_constraint(my_model, indexes_or_variables, sense, value, val = None):
     debug(str(indexes_or_variables) + str(sense) + str(value))
@@ -65,6 +66,28 @@ def _get_indexes_of_timeslots_by_filter(variables, week = None, day = None, corp
     if not type is None:
         search += type_prefix + str(type)
         search += '.*'
+
+def _get_variables_from_general_variable(variable):
+    template = time_slot_format.replace("%d", r"(\d+)").replace("%s", "(.*)")
+    finded = re.findall(template, variable)
+    if len(finded) == 0:
+        return []
+
+    parsed = finded[0]
+    week, day, corpus, room, ts, lesson,  group_ids,  _type, teacher = parsed
+    week = int(week)
+    day = int(day)
+    ts = int(ts)
+    group_ids = eval(group_ids)
+    return [week, day, corpus, room, ts, lesson,  group_ids,  _type, teacher]
+
+def _calculate_cost_of_lesson_by_position(variable):
+    variables = _get_variables_from_general_variable(variable)
+    if len(variables) == 0:
+        raise Exception('Internal error')
+    week, day, _, _, ts, _,  _,  _, _  = variables
+    return 1+ts+global_config.time_slots_per_day_available*(day+week*global_config.study_days)
+
 
 class Solver:
     def __init__(self, university):
@@ -159,13 +182,48 @@ class Solver:
 
                         _add_constraint(self.model, indexes, '<=', 1)
 
+    def __constraint_max_lessons_per_day_for_teachers_or_groups(self):
+        '''
+        Every teacher or group can be busy only limited count of lections per day
+        '''
+        for container, _, column in self.__get_groups_teachers_list():
+            for week_i in range(global_config.study_weeks):
+                for day_i in range(global_config.study_days):
+                    for ith in range(len(container)):
+                        indexes = eval("_get_indexes_of_timeslots_by_filter(self.model.variables, week = week_i, day=day_i, %s=ith)" % column)
+                        _add_constraint(self.model, indexes, '<=', global_config.max_lections_per_day)
+
+    def __local_constraint_lesson_after_another_lesson(self):
+        '''
+        Some lessons should be after some another. For example, practice should be after lection. Therefore we should track it. \t
+        Currnet code works this way: \t
+        1) Find all indexes of original lesson and each for lessons, that should be before
+        2) Calculate some 'cost' (ts+max_ts*(day+week*day))
+        3) sum of costs original should be >= sum of costs lessons, that should be before
+        '''
+        for lesson in self.university.lessons:
+            if len(lesson.should_be_after) == 0:
+                continue
+
+            original_indexes = _get_indexes_by_name(self.model.variables, lesson.full_name())
+            original_val = [_calculate_cost_of_lesson_by_position(self.model.variables.get_names(i)) 
+                            for i in original_indexes]
+
+            for index_after in lesson.should_be_after:
+                should_be_after_this = self.university.lessons[index_after]
+                should_be_after_indexes = _get_indexes_by_name(self.model.variables, should_be_after_this.full_name())
+                should_be_after_val = [-1*_calculate_cost_of_lesson_by_position(self.model.variables.get_names(i)) 
+                                        for i in should_be_after_indexes]
+                _add_constraint(self.model, original_indexes+should_be_after_indexes, '>=', 0, original_val+should_be_after_val)
+
     def solve(self):
         self.__fill_lessons_to_time_slots()
 
         self.__constraint_total_count_of_lessons()
         self.__constraint_group_or_teacher_only_in_one_room_per_timeslot()
         self.__constraint_ban_changing_corpus_for_groups_or_teachers_during_day()
-
+        self.__constraint_max_lessons_per_day_for_teachers_or_groups()
+        self.__local_constraint_lesson_after_another_lesson()
 
         self.model.set_results_stream(None) # ignore standart useless output
         self.model.solve()
@@ -182,52 +240,44 @@ class Solver:
 
         names = self.model.variables.get_names()
         values = self.model.solution.get_values()
-        template = time_slot_format.replace("%d", r"(\d+)").replace("%s", "(.*)")
-        debug(template)
 
         by_group = {}
         for i in range(len(values)):
             if values[i] == 0:
                 continue
-
-            finded = re.findall(template, names[i])
-            if len(finded) == 0:
+            
+            variables = _get_variables_from_general_variable(names[i])
+            if len(variables) == 0:
                 continue
 
-            parsed = finded[0]
-            week, day, corpus, room, ts, lesson,  group_ids,  _type, teacher = parsed
-            week = int(week)
-            day = int(day)
-            ts = int(ts)
+            week, day, corpus, room, ts, lesson,  group_ids,  _type, teacher = variables
+            for group_id in group_ids:
+                temp = by_group
+                if not group_id in temp:
+                    temp[group_id] = {}
 
-            #print('Week %s Day %s Corpus %s Room %s TS %s Lesson %s Type: %s Teacher: %s GroupIDs %s' % 
-            #(week, day, corpus, room, ts, lesson, _type, self.university.teachers[int(teacher)], group_ids))
+                temp = temp[group_id]
+                if not week in temp:
+                    temp[week] = {}
 
-            temp = by_group
-            if not group_ids in temp:
-                temp[group_ids] = {}
+                temp = temp[week]
+                if not day in temp:
+                    temp[day] = {}
 
-            temp = temp[group_ids]
-            if not week in temp:
-                temp[week] = {}
-
-            temp = temp[week]
-            if not day in temp:
-                temp[day] = {}
-
-            temp = temp[day]
-            if not ts in temp:
-                temp[ts] = {}
-
-            temp[ts] = [int(corpus), int(room), lesson, _type, int(teacher)]
+                temp = temp[day]
+                if not ts in temp:
+                    temp[ts] = {}
+                temp_list = copy.deepcopy(group_ids)
+                temp_list.remove(group_id)
+                temp[ts] = [int(corpus), int(room), lesson, _type, int(teacher), temp_list]
 
         for group, weeks in sorted(by_group.items()):
             for week, days in sorted(weeks.items()):
                 for day, tss in sorted(days.items()):
                     for ts, listt in sorted(tss.items()):
-                        corpus, room, lesson, _type, teacher = listt
-                        print("Groups %s \t Week %d \t Day %d \t Corpus %d \t TS %d \t room %d \t type %s\t\t teacher %s" % 
-                              (group, week, day, corpus, ts, room, _type, self.university.teachers[teacher]))
+                        corpus, room, lesson, _type, teacher, other_groups = listt
+                        print("Groups %s \t Week %d\tDay %d Corpus %d  TS %d  room %d\tlesson %s\ttype %s\t\t With %s  \tteacher %s" % 
+                              (group, week, day, corpus, ts, room, lesson, _type.split('.')[1], ",".join(str(i) for i in other_groups), self.university.teachers[teacher] ))
 
     def __get_groups_teachers_list(self):
         ''' Returns tuple of (container, format for corpus tracking, column for filter) '''

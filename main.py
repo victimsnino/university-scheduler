@@ -1,5 +1,5 @@
 
-from university import University
+from university import University, Lesson
 from general_utils import RoomType, debug, set_debug, Config, global_config
 from solver import Solver
 import sys
@@ -7,6 +7,8 @@ import sys
 
 ''' 
 Done:
+* Added weeks and days
+
 * __fill_lessons_to_time_slots
     * Type of lesson and room type are equil
     * Size of room >= size of groups of current lesson
@@ -20,6 +22,13 @@ Done:
 
 * __constraint_ban_changing_corpus_for_groups_or_teachers_during_day
     * Constraint: each group or teacher can has only 1 corpus per day
+
+* __constraint_max_lessons_per_day_for_teachers_or_groups
+    * Max lessons per day limited by config
+
+* __local_constraint_lesson_after_another_lesson
+    * Some lessons have dependencies from each others. Added logic, that total sum of costs lectures 'after' should be >= total cost of lectures 'before'
+    * It is doesn't require, that one lesson places strongly after another.... Only 'summary'
 
     
 * Easy parser for output - parse_output_and_create_schedule
@@ -46,23 +55,24 @@ if __name__ == "__main__":
     university.add_group('15-pi', 60)
     university.add_group('14-pi', 20)
 
-    university.add_teacher('Бычков Илья Сергеевич')
-    university.add_teacher('Чистяков Вячеслав Васильевич')
+    university.add_teacher('Бычков И С')
+    university.add_teacher('Чистяков В В')
     university.add_teacher('Фейковый Матанщик')
     university.add_teacher('Фейковый Прогер')
 
-    university.add_lesson("матан", ['16-pmi', '17-pmi'], 2, RoomType.LECTURE, ['Чистяков Вячеслав Васильевич', 'Фейковый Матанщик'])
-    university.add_lesson("матан", ['16-pmi'], 1, RoomType.PRACTICE, ['Чистяков Вячеслав Васильевич', 'Фейковый Матанщик'])
-    university.add_lesson("матан", ['17-pmi'], 1, RoomType.PRACTICE, ['Чистяков Вячеслав Васильевич', 'Фейковый Матанщик'])
+    university.add_lesson("матан", ['16-pmi', '17-pmi'], 2, RoomType.LECTURE, ['Чистяков В В', 'Фейковый Матанщик'])
+    university.add_lesson("матан", ['16-pmi'], 4, RoomType.PRACTICE, ['Чистяков В В', 'Фейковый Матанщик'])
+    university.add_lesson("матан", ['17-pmi'], 3, RoomType.PRACTICE, ['Чистяков В В', 'Фейковый Матанщик'])
 
-    university.add_lesson("прога", ['16-pi'], 2, RoomType.LECTURE, ['Бычков Илья Сергеевич'])
-    university.add_lesson("прога", ['16-pi'], 2, RoomType.COMPUTER, ['Бычков Илья Сергеевич'])
-    university.add_lesson("прога", ['14-pi'], 1, RoomType.COMPUTER, ['Бычков Илья Сергеевич', 'Фейковый Прогер'])
+    pr_lection = university.add_lesson("прога", ['16-pi'], 10, RoomType.LECTURE,  ['Бычков И С'])
+    pr_practice = university.add_lesson("прога", ['16-pi'], 10, RoomType.COMPUTER, ['Бычков И С'])
 
-    university.add_lesson("прога", ['15-pi'], 1, RoomType.LECTURE, ['Бычков Илья Сергеевич', 'Фейковый Прогер'])
+    pr_practice.should_be_after_lessons(pr_lection)
+
+    university.add_lesson("прога", ['14-pi'], 1, RoomType.COMPUTER, ['Бычков И С', 'Фейковый Прогер'])
+    university.add_lesson("прога", ['15-pi'], 5, RoomType.LECTURE, ['Бычков И С', 'Фейковый Прогер'])
 
     debug(university)
 
     solver = Solver(university)
     solver.solve()
-

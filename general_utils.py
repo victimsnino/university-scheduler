@@ -5,9 +5,10 @@ DEBUG_PRINT = False
 
 class Config:
     def __init__(self):
-        self.time_slots_per_day_available = 5
+        self.time_slots_per_day_available = 6
         self.study_days                   = 6
         self.study_weeks                  = 1
+        self.max_lections_per_day         = 5
 
 global_config = Config()
 

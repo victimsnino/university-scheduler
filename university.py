@@ -2,13 +2,18 @@ import numpy as np
 
 from general_utils import group_prefix, type_prefix, RoomType
 
+def list_intersection(lst1, lst2): 
+    return set(lst1).intersection(lst2)
+
 class Lesson:
-    def __init__(self, lesson_name, group_indexes, count, lesson_type, teacher_indexes):
+    def __init__(self, lesson_name, group_indexes, count, lesson_type, teacher_indexes, self_index):
         self.lesson_name    = lesson_name
         self.group_indexes  = group_indexes
         self.count          = count
         self.lesson_type    = RoomType(lesson_type)
         self.teacher_indexes=teacher_indexes
+        self.self_index     = self_index
+        self.should_be_after=[]
 
     def __eq__(self, other):
         return self.full_name() == other.full_name()
@@ -29,6 +34,15 @@ class Lesson:
             size += groups[group_index].size
 
         return size
+
+    def should_be_after_lessons(self, another_lesson):
+        if self.self_index == another_lesson.self_index:
+            raise Exception("Can't create relations to self for lessons!")
+        
+        if len(list_intersection(self.group_indexes, another_lesson.group_indexes)) == 0:
+            raise Exception("Lesson %s and %s don't have common groups!" % (self, another_lesson))
+
+        self.should_be_after.append(another_lesson.self_index)
 
 class Room:
     def __init__(self, room_number, room_type, size):
@@ -116,13 +130,14 @@ class University:
             if find == False:
                 raise BaseException('Teacher %s doesn\'t exist!' % teacher_name)
         
-        new_lesson = Lesson(lesson_name, group_indexes, count, lesson_type, teacher_indexes)
+        new_lesson = Lesson(lesson_name, group_indexes, count, lesson_type, teacher_indexes, len(self.lessons))
         for i in range(len(self.lessons)):
             lesson = self.lessons[i]
             if lesson == new_lesson:
                 raise BaseException('Lesson %s just exist!' % lesson)
 
         self.lessons.append(new_lesson)
+        return self.lessons[-1]
 
     def add_teacher(self, name):
         for teacher in self.teachers:
