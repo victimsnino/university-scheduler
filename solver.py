@@ -195,8 +195,10 @@ class Solver:
 
     def __local_constraint_lesson_after_another_lesson(self):
         '''
-        Some lessons should be after some another. For example, practice should be after lection. Therefore we should track it.
+        Some lessons should be after some another. \n
+        For example, practice should be after lection. Therefore we should track it.
         '''
+        # practice
         for lesson in self.university.lessons:
             if len(lesson.should_be_after) == 0:
                 continue
@@ -205,6 +207,7 @@ class Solver:
             original_indexes = sorted(original_indexes, key=lambda index: _calculate_cost_of_lesson_by_position(self.model.variables.get_names(index)))
             original_costs   = [_calculate_cost_of_lesson_by_position(self.model.variables.get_names(i)) for i in original_indexes]
 
+            # lection
             for index_after in lesson.should_be_after:
                 should_be_after_this = self.university.lessons[index_after]
                 should_be_after_indexes = _get_indexes_by_name(self.model.variables, should_be_after_this.full_name())

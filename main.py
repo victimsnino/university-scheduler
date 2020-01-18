@@ -27,8 +27,7 @@ Done:
     * Max lessons per day limited by config
 
 * __local_constraint_lesson_after_another_lesson
-    * Some lessons have dependencies from each others. Added logic, that total sum of costs lectures 'after' should be >= total cost of lectures 'before'
-    * It is doesn't require, that one lesson places strongly after another.... Only 'summary'
+    * Availability for ordering lessons depend from each other (practice after lecture)
 
     
 * Easy parser for output - parse_output_and_create_schedule

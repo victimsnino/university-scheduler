@@ -36,6 +36,19 @@ class Lesson:
         return size
 
     def should_be_after_lessons(self, another_lesson):
+        '''
+        another_lesson is lesson, that should be before current:\n
+        At any moment of time count of another_lessons >= count of self lessons
+        for example:
+            x - lecture (another lessons)
+            y - practice (self)
+            | - cut
+                     |
+            [x][ ][x]|[x][ ]
+            [ ][y][ ]|[ ][y]
+                     |
+        However, it doesn't guarantee, that lessons should alternate
+        '''
         if self.self_index == another_lesson.self_index:
             raise Exception("Can't create relations to self for lessons!")
         
