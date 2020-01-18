@@ -105,14 +105,14 @@ class University:
 
         for room in corpus:
             if room.room_number == room_number:
-                raise BaseException("Room %d in corpus %d just exist!" % (room_number, corpus_number))
+                raise Exception("Room %d in corpus %d just exist!" % (room_number, corpus_number))
 
         corpus.append(Room(room_number, room_type, size))
 
     def add_group(self, group_name, size):
         for group in self.groups:
             if group.group_name == group_name:
-                raise BaseException("WARNING: Group %s just exist! " % group_name)
+                raise Exception("WARNING: Group %s just exist! " % group_name)
         
         self.groups.append(Group(group_name, size))
 
@@ -129,7 +129,7 @@ class University:
                 group_indexes.append(group_i)
 
         if len(group_indexes) != len(group_names):
-            raise BaseException("Some of groups from %s don't exist!" % group_names)
+            raise Exception("Some of groups from %s don't exist!" % group_names)
         
         teacher_indexes = []
         for teacher_name in teachers:
@@ -141,13 +141,13 @@ class University:
                     break
 
             if find == False:
-                raise BaseException('Teacher %s doesn\'t exist!' % teacher_name)
+                raise Exception('Teacher %s doesn\'t exist!' % teacher_name)
         
         new_lesson = Lesson(lesson_name, group_indexes, count, lesson_type, teacher_indexes, len(self.lessons))
         for i in range(len(self.lessons)):
             lesson = self.lessons[i]
             if lesson == new_lesson:
-                raise BaseException('Lesson %s just exist!' % lesson)
+                raise Exception('Lesson %s just exist!' % lesson)
 
         self.lessons.append(new_lesson)
         return self.lessons[-1]
@@ -155,7 +155,7 @@ class University:
     def add_teacher(self, name):
         for teacher in self.teachers:
             if teacher.name == name:
-                raise BaseException('Teacher %s just exist!' % name)
+                raise Exception('Teacher %s just exist!' % name)
 
         self.teachers.append(Teacher(name))
 

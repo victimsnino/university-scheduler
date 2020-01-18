@@ -5,6 +5,9 @@ DEBUG_PRINT = False
 
 class Config:
     def __init__(self):
+        self.reset()
+        
+    def reset(self):
         self.time_slots_per_day_available = 6
         self.study_days                   = 6
         self.study_weeks                  = 1

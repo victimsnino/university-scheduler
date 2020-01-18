@@ -10,7 +10,7 @@ def _add_constraint(my_model, indexes_or_variables, sense, value, val = None):
     valid_operations = ["<=", ">=", "=="]
     senses = ["L", "G", "E"]
     if sense not in valid_operations:
-        raise BaseException("Not valid operation! %s" % sense)
+        raise Exception("Not valid operation! %s" % sense)
 
     if val is None:
         val = [1.0]*len(indexes_or_variables)
@@ -79,6 +79,7 @@ def _get_variables_from_general_variable(variable):
     day = int(day)
     ts = int(ts)
     group_ids = eval(group_ids)
+    _type = eval(_type)
     return [week, day, corpus, room, ts, lesson,  group_ids,  _type, teacher]
 
 def _calculate_cost_of_lesson_by_position(variable):
@@ -230,8 +231,6 @@ class Solver:
                     _add_constraint(self.model, should_be_after_indexes[:after_till_index]+original_indexes[:original_till_index], '>=', 0,
                                     [float(lesson.count/should_be_after_this.count)]*after_till_index+[-1]*original_till_index)
 
-
-
     def solve(self):
         self.__fill_lessons_to_time_slots()
 
@@ -243,13 +242,14 @@ class Solver:
 
         self.model.set_results_stream(None) # ignore standart useless output
         self.model.solve()
-        self.__parse_output_and_create_schedule()
+        output = self.__parse_output_and_create_schedule()
+        return not (self.model.solution.get_status() != 1 and self.model.solution.get_status() != 101), output
 
     def __parse_output_and_create_schedule(self):
         # solution.get_status() returns an integer code
         print("Solution status = ",     self.model.solution.get_status(), ":", self.model.solution.status[self.model.solution.get_status()])
         if self.model.solution.get_status() != 1 and self.model.solution.get_status() != 101:
-            return
+            return None
 
         debug("Array of X = %s" %           self.model.solution.get_values())
         debug("Solution value  = %s" %      self.model.solution.get_objective_value())
@@ -293,8 +293,9 @@ class Solver:
                     for ts, listt in sorted(tss.items()):
                         corpus, room, lesson, _type, teacher, other_groups = listt
                         print("Groups %s \t Week %d\tDay %d Corpus %d  TS %d  room %d\tlesson %s\ttype %s\t\t With %s  \tteacher %s" % 
-                              (group, week, day, corpus, ts, room, lesson, _type.split('.')[1], ",".join(str(i) for i in other_groups), self.university.teachers[teacher] ))
+                              (group, week, day, corpus, ts, room, lesson, str(_type).split('.')[1], ",".join(str(i) for i in other_groups), self.university.teachers[teacher] ))
 
+        return by_group
     def __get_groups_teachers_list(self):
         ''' Returns tuple of (container, format for corpus tracking, column for filter) '''
         return [(self.university.groups, corpus_tracker_of_groups_format, 'group_id'), 
