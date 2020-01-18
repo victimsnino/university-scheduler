@@ -12,7 +12,7 @@ class Config:
         self.study_days                   = 6
         self.study_weeks                  = 1
         self.max_lessons_per_day          = 5
-        self.max_lessons_per_week         = 12
+        self.max_lessons_per_week         = 16 # 25 hours / 6 = 16.666666
 
 global_config = Config()
 
