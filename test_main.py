@@ -96,7 +96,7 @@ def test_multiple_teachers():
 
 def test_order_lessons():
     global_config.study_days =  6
-    global_config.study_weeks = 1
+    global_config.study_weeks = 2
 
     university = University()
     university.add_room(1, 121, RoomType.PRACTICE,  30) 
@@ -125,3 +125,63 @@ def test_order_lessons():
                         elif _type == RoomType.LECTURE:
                             index += practice_count/lecture_count
                         assert index >= 0
+
+def test_max_lessons_per_day():
+    global_config.max_lessons_per_day = 2
+    global_config.study_days = 1
+    global_config.study_weeks = 1
+
+    university = University()
+    university.add_room(1, 120, RoomType.LECTURE,   100) 
+    university.add_group("16-pmi", 30)
+    university.add_teacher('Бычков И С')
+    university.add_lesson("прога", ['16-pmi'], 5, RoomType.LECTURE,  ['Бычков И С'])
+
+    solver = Solver(university)
+    res, _ = solver.solve()
+    assert not res
+
+    global_config.max_lessons_per_day = 6
+    solver = Solver(university)
+    res, _ = solver.solve()
+    assert res
+
+def test_max_lessons_per_week():
+    global_config.max_lessons_per_week = 2
+    global_config.study_weeks = 1
+
+    university = University()
+    university.add_room(1, 120, RoomType.LECTURE,   100) 
+    university.add_group("16-pmi", 30)
+    university.add_teacher('Бычков И С')
+    university.add_lesson("прога", ['16-pmi'], 5, RoomType.LECTURE,  ['Бычков И С'])
+
+    solver = Solver(university)
+    res, _ = solver.solve()
+    assert not res
+
+    global_config.max_lessons_per_week = 6
+    solver = Solver(university)
+    res, _ = solver.solve()
+    assert res
+
+def test_teacher_ban_some_tss():
+    global_config.study_weeks = 1
+    global_config.study_days = 1
+    global_config.time_slots_per_day_available = 3
+
+    university = University()
+    university.add_room(1, 120, RoomType.LECTURE,   100) 
+    university.add_group("16-pmi", 30)
+    teacher = university.add_teacher('Бычков И С')
+    teacher.ban_time_slots(0, 0, 1)
+    university.add_lesson("прога", ['16-pmi'], 3, RoomType.LECTURE,  ['Бычков И С'])
+
+    solver = Solver(university)
+    res, _ = solver.solve()
+    assert not res
+
+    global_config.time_slots_per_day_available = 4
+    solver = Solver(university)
+    res, _ = solver.solve()
+    assert res

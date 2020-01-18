@@ -1,7 +1,7 @@
 import cplex
 import re
 from general_utils import * 
-from university import University, Lesson
+from university import University, Lesson, Teacher
 import copy
 
 def _add_constraint(my_model, indexes_or_variables, sense, value, val = None):
@@ -192,7 +192,17 @@ class Solver:
                 for day_i in range(global_config.study_days):
                     for ith in range(len(container)):
                         indexes = eval("_get_indexes_of_timeslots_by_filter(self.model.variables, week = week_i, day=day_i, %s=ith)" % column)
-                        _add_constraint(self.model, indexes, '<=', global_config.max_lections_per_day)
+                        _add_constraint(self.model, indexes, '<=', global_config.max_lessons_per_day)
+    
+    def __constraint_max_lessons_per_week_for_teachers_or_groups(self):
+        '''
+        Every teacher or group can be busy only limited count of lections per week
+        '''
+        for container, _, column in self.__get_groups_teachers_list():
+            for week_i in range(global_config.study_weeks):
+                for ith in range(len(container)):
+                    indexes = eval("_get_indexes_of_timeslots_by_filter(self.model.variables, week = week_i, %s=ith)" % column)
+                    _add_constraint(self.model, indexes, '<=', global_config.max_lessons_per_week)
 
     def __local_constraint_lesson_after_another_lesson(self):
         '''
@@ -231,6 +241,13 @@ class Solver:
                     _add_constraint(self.model, should_be_after_indexes[:after_till_index]+original_indexes[:original_till_index], '>=', 0,
                                     [float(lesson.count/should_be_after_this.count)]*after_till_index+[-1]*original_till_index)
 
+    def __local_constraint_teacher_has_banned_ts(self):
+        for teacher_i in range(len(self.university.teachers)):
+            teacher = self.university.teachers[teacher_i]
+            for week, day, timeslot in teacher.banned_time_slots:
+                indexes = _get_indexes_of_timeslots_by_filter(self.model.variables, week=week, day=day, timeslot=timeslot, teacher_id=teacher_i)
+                _add_constraint(self.model, indexes, '==', 0)
+
     def solve(self):
         self.__fill_lessons_to_time_slots()
 
@@ -238,7 +255,9 @@ class Solver:
         self.__constraint_group_or_teacher_only_in_one_room_per_timeslot()
         self.__constraint_ban_changing_corpus_for_groups_or_teachers_during_day()
         self.__constraint_max_lessons_per_day_for_teachers_or_groups()
+        self.__constraint_max_lessons_per_week_for_teachers_or_groups()
         self.__local_constraint_lesson_after_another_lesson()
+        self.__local_constraint_teacher_has_banned_ts()
 
         self.model.set_results_stream(None) # ignore standart useless output
         self.model.solve()
@@ -296,6 +315,7 @@ class Solver:
                               (group, week, day, corpus, ts, room, lesson, str(_type).split('.')[1], ",".join(str(i) for i in other_groups), self.university.teachers[teacher] ))
 
         return by_group
+    
     def __get_groups_teachers_list(self):
         ''' Returns tuple of (container, format for corpus tracking, column for filter) '''
         return [(self.university.groups, corpus_tracker_of_groups_format, 'group_id'), 

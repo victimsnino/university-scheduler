@@ -11,7 +11,8 @@ class Config:
         self.time_slots_per_day_available = 6
         self.study_days                   = 6
         self.study_weeks                  = 1
-        self.max_lections_per_day         = 5
+        self.max_lessons_per_day          = 5
+        self.max_lessons_per_week         = 12
 
 global_config = Config()
 
@@ -47,10 +48,10 @@ corpus_tracker_of_groups_format =   corpus_corpus_prefix    +   "%d"    +\
                                     corpus_week_prefix      +   "%d"    +\
                                     corpus_day_prefix       +   "%d"    +\
                                     corpus_group_prefix     +   "%d"
-corpus_tracker_of_teachers_format =  corpus_corpus_prefix    +   "%d"    +\
-                                     corpus_week_prefix      +   "%d"    +\
-                                     corpus_day_prefix       +   "%d"    +\
-                                     corpus_teacher_prefix   +   "%d"
+corpus_tracker_of_teachers_format = corpus_corpus_prefix    +   "%d"    +\
+                                    corpus_week_prefix      +   "%d"    +\
+                                    corpus_day_prefix       +   "%d"    +\
+                                    corpus_teacher_prefix   +   "%d"
 
 
 class RoomType(Flag):

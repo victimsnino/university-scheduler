@@ -26,9 +26,14 @@ Done:
 * __constraint_max_lessons_per_day_for_teachers_or_groups
     * Max lessons per day limited by config
 
+* __constraint_max_lessons_per_week_for_teachers_or_groups
+    * Max lessons per week limited by config
+
 * __local_constraint_lesson_after_another_lesson
     * Availability for ordering lessons depend from each other (practice after lecture)
 
+* __local_constraint_teacher_has_banned_ts
+    * Some teachers can have banned timeslots -> no lessons in the such day
     
 * Easy parser for output - parse_output_and_create_schedule
 '''

@@ -83,12 +83,24 @@ class Group:
 class Teacher:
     def __init__(self, full_name):
         self.name = full_name
+        self.banned_time_slots = set()
 
     def __str__(self):
         return self.name
 
     def __repr__(self):
         return self.__str__()
+    
+    def ban_time_slots(self, week = None, day = None, timeslot = None):
+        '''
+        Ban timeslots for current teacher. If some variable is None it means, that get all values. For example: \n
+        week = 0, day = None, timeslot = 1 \n
+        take indexes for all 1th timeslots on 0th week for all days
+        '''
+        if week is None and day is None and timeslot is None:
+            raise Exception("You should pass 1+ of parameters")
+
+        self.banned_time_slots.add((week, day, timeslot))
 
 class University:
     def __init__(self):
@@ -158,6 +170,7 @@ class University:
                 raise Exception('Teacher %s just exist!' % name)
 
         self.teachers.append(Teacher(name))
+        return self.teachers[-1]
 
     def __str__(self):
         return "*****************************************************\n" + \
