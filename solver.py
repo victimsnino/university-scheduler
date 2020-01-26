@@ -241,12 +241,13 @@ class Solver:
                     _add_constraint(self.model, should_be_after_indexes[:after_till_index]+original_indexes[:original_till_index], '>=', 0,
                                     [float(lesson.count/should_be_after_this.count)]*after_till_index+[-1]*original_till_index)
 
-    def __local_constraint_teacher_has_banned_ts(self):
-        for teacher_i in range(len(self.university.teachers)):
-            teacher = self.university.teachers[teacher_i]
-            for week, day, timeslot in teacher.banned_time_slots:
-                indexes = _get_indexes_of_timeslots_by_filter(self.model.variables, week=week, day=day, timeslot=timeslot, teacher_id=teacher_i)
-                _add_constraint(self.model, indexes, '==', 0)
+    def __local_constraint_teacher_or_group_has_banned_ts(self):
+        for container, _, column in self.__get_groups_teachers_list():
+            for ith in range(len(container)):
+                teacher_or_group = container[ith]
+                for week, day, timeslot in teacher_or_group.banned_time_slots:
+                    indexes = eval('_get_indexes_of_timeslots_by_filter(self.model.variables, week=week, day=day, timeslot=timeslot, %s=ith)' % column)
+                    _add_constraint(self.model, indexes, '==', 0)
 
     def solve(self):
         self.__fill_lessons_to_time_slots()
@@ -257,7 +258,7 @@ class Solver:
         self.__constraint_max_lessons_per_day_for_teachers_or_groups()
         self.__constraint_max_lessons_per_week_for_teachers_or_groups()
         self.__local_constraint_lesson_after_another_lesson()
-        self.__local_constraint_teacher_has_banned_ts()
+        self.__local_constraint_teacher_or_group_has_banned_ts()
 
         self.model.set_results_stream(None) # ignore standart useless output
         self.model.solve()

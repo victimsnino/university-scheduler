@@ -1,6 +1,6 @@
 import numpy as np
 
-from general_utils import group_prefix, type_prefix, RoomType
+from general_utils import group_prefix, type_prefix, RoomType, GroupType, global_config
 
 def list_intersection(lst1, lst2): 
     return set(lst1).intersection(lst2)
@@ -69,31 +69,13 @@ class Room:
     def __repr__(self):
         return self.__str__()
 
-class Group:
-    def __init__(self, group_name, size):
-        self.group_name     = group_name
-        self.size           = size
-
-    def __str__(self):
-        return self.group_name + "_size_"+str(self.size)
-    
-    def __repr__(self):
-        return self.__str__()
-
-class Teacher:
-    def __init__(self, full_name):
-        self.name = full_name
+class GroupOrTeacherBase:
+    def __init__(self):
         self.banned_time_slots = set()
-
-    def __str__(self):
-        return self.name
-
-    def __repr__(self):
-        return self.__str__()
     
     def ban_time_slots(self, week = None, day = None, timeslot = None):
         '''
-        Ban timeslots for current teacher. If some variable is None it means, that get all values. For example: \n
+        Ban timeslots for current teacher or group. If some variable is None it means, that get all values. For example: \n
         week = 0, day = None, timeslot = 1 \n
         take indexes for all 1th timeslots on 0th week for all days
         '''
@@ -101,6 +83,41 @@ class Teacher:
             raise Exception("You should pass 1+ of parameters")
 
         self.banned_time_slots.add((week, day, timeslot))
+
+    
+class Group(GroupOrTeacherBase):
+    def __init__(self, group_name, size, group_type):
+        GroupOrTeacherBase.__init__(self)
+        self.group_name     = group_name
+        self.size           = size
+        self.group_type     = GroupType(group_type)
+        self.__ban_time_slots_by_group_type()
+
+    def __str__(self):
+        return self.group_name + "_size_"+str(self.size)+"_type_"+str(self.group_type)
+    
+    def __repr__(self):
+        return self.__str__()
+    
+    def __ban_time_slots_by_group_type(self):
+        '''
+        Bachelors can study only first 6 lessons, magistracy 0 only last 2
+        '''
+        banned_ts_start = 0 if self.group_type != GroupType.BACHELOR else global_config.bachelor_time_slots_per_day
+        banned_ts_stop = banned_ts_start + (global_config.bachelor_time_slots_per_day if self.group_type != GroupType.BACHELOR else global_config.magistracy_time_slots_per_day)
+        for ts in range(banned_ts_start, banned_ts_stop):
+            self.ban_time_slots(timeslot=ts)
+
+class Teacher(GroupOrTeacherBase):
+    def __init__(self, full_name):
+        self.name = full_name
+        GroupOrTeacherBase.__init__(self)
+
+    def __str__(self):
+        return self.name
+
+    def __repr__(self):
+        return self.__str__()
 
 class University:
     def __init__(self):
@@ -121,12 +138,12 @@ class University:
 
         corpus.append(Room(room_number, room_type, size))
 
-    def add_group(self, group_name, size):
+    def add_group(self, group_name, size, group_type):
         for group in self.groups:
             if group.group_name == group_name:
                 raise Exception("WARNING: Group %s just exist! " % group_name)
         
-        self.groups.append(Group(group_name, size))
+        self.groups.append(Group(group_name, size, group_type))
 
     def add_lesson(self, lesson_name, group_names, count, lesson_type, teachers):
         '''

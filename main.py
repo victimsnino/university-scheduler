@@ -1,6 +1,6 @@
 
 from university import University, Lesson
-from general_utils import RoomType, debug, set_debug, Config, global_config
+from general_utils import RoomType, debug, set_debug, Config, global_config, GroupType
 from solver import Solver
 import sys
 
@@ -32,7 +32,7 @@ Done:
 * __local_constraint_lesson_after_another_lesson
     * Availability for ordering lessons depend from each other (practice after lecture)
 
-* __local_constraint_teacher_has_banned_ts
+* __local_constraint_teacher_or_group_has_banned_ts
     * Some teachers can have banned timeslots -> no lessons in the such day
     
 * Easy parser for output - parse_output_and_create_schedule
@@ -53,11 +53,11 @@ if __name__ == "__main__":
 
     university.add_room(3, 305, RoomType.LECTURE,   60) 
 
-    university.add_group("16-pmi", 30)
-    university.add_group("17-pmi", 20)
-    university.add_group('16-pi', 25)
-    university.add_group('15-pi', 60)
-    university.add_group('14-pi', 20)
+    university.add_group("16-pmi", 30, GroupType.BACHELOR)
+    university.add_group("17-pmi", 20, GroupType.BACHELOR)
+    university.add_group('16-pi', 25, GroupType.BACHELOR)
+    university.add_group('15-pi', 60, GroupType.BACHELOR)
+    university.add_group('14-pi', 20, GroupType.BACHELOR)
 
     university.add_teacher('Бычков И С')
     university.add_teacher('Чистяков В В')

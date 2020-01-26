@@ -1,7 +1,7 @@
 import pytest
 
 from university import University, Lesson
-from general_utils import RoomType, debug, set_debug, Config, global_config
+from general_utils import RoomType, debug, set_debug, Config, global_config, GroupType
 from solver import Solver
 import copy
 
@@ -17,8 +17,8 @@ def test_empty():
 def test_add_group_twice():
     with pytest.raises(Exception) as e:
         university = University()
-        university.add_group('16-pmi', 1)
-        university.add_group('16-pmi', 1)
+        university.add_group('16-pmi', 1, GroupType.BACHELOR)
+        university.add_group('16-pmi', 1, GroupType.BACHELOR)
     print(e)
 
 def test_add_teacher_twice():
@@ -38,7 +38,7 @@ def test_add_lesson_without_group():
 def test_1_room():
     university = University()
     university.add_room(1, 120, RoomType.LECTURE,   100) 
-    university.add_group("16-pmi", 30)
+    university.add_group("16-pmi", 30, GroupType.BACHELOR)
     university.add_teacher('Бычков И С')
     university.add_lesson("прога", ['16-pmi'], 5, RoomType.LECTURE,  ['Бычков И С'])
 
@@ -53,7 +53,7 @@ def test_ban_changin_corpus():
     university = University()
     university.add_room(1, 120, RoomType.LECTURE,   100) 
     university.add_room(2, 121, RoomType.PRACTICE,  30) 
-    university.add_group("16-pmi", 30)
+    university.add_group("16-pmi", 30, GroupType.BACHELOR)
     university.add_teacher('Бычков И С')
     university.add_lesson("прога", ['16-pmi'], 1, RoomType.LECTURE,  ['Бычков И С'])
     university.add_lesson("прога", ['16-pmi'], 1, RoomType.PRACTICE,  ['Бычков И С'])
@@ -74,8 +74,8 @@ def test_multiple_teachers():
     university = University()
     university.add_room(1, 120, RoomType.LECTURE,   100) 
     university.add_room(2, 121, RoomType.PRACTICE,  30) 
-    university.add_group("16-pmi", 30)
-    university.add_group("17-pmi", 30)
+    university.add_group("16-pmi", 30, GroupType.BACHELOR)
+    university.add_group("17-pmi", 30, GroupType.BACHELOR)
     university.add_teacher('Бычков И С')
     university.add_teacher('Фейк')
 
@@ -101,7 +101,7 @@ def test_order_lessons():
     university = University()
     university.add_room(1, 121, RoomType.PRACTICE,  30) 
     university.add_room(1, 120, RoomType.LECTURE,   100) 
-    university.add_group("16-pmi", 30)
+    university.add_group("16-pmi", 30, GroupType.BACHELOR)
     university.add_teacher('Бычков И С')
     lecture_count = 10
     practice_count = 5
@@ -133,7 +133,7 @@ def test_max_lessons_per_day():
 
     university = University()
     university.add_room(1, 120, RoomType.LECTURE,   100) 
-    university.add_group("16-pmi", 30)
+    university.add_group("16-pmi", 30, GroupType.BACHELOR)
     university.add_teacher('Бычков И С')
     university.add_lesson("прога", ['16-pmi'], 5, RoomType.LECTURE,  ['Бычков И С'])
 
@@ -152,7 +152,7 @@ def test_max_lessons_per_week():
 
     university = University()
     university.add_room(1, 120, RoomType.LECTURE,   100) 
-    university.add_group("16-pmi", 30)
+    university.add_group("16-pmi", 30, GroupType.BACHELOR)
     university.add_teacher('Бычков И С')
     university.add_lesson("прога", ['16-pmi'], 5, RoomType.LECTURE,  ['Бычков И С'])
 
@@ -172,7 +172,7 @@ def test_teacher_ban_some_tss():
 
     university = University()
     university.add_room(1, 120, RoomType.LECTURE,   100) 
-    university.add_group("16-pmi", 30)
+    university.add_group("16-pmi", 30, GroupType.BACHELOR)
     teacher = university.add_teacher('Бычков И С')
     teacher.ban_time_slots(0, 0, 1)
     university.add_lesson("прога", ['16-pmi'], 3, RoomType.LECTURE,  ['Бычков И С'])
@@ -185,3 +185,34 @@ def test_teacher_ban_some_tss():
     solver = Solver(university)
     res, _ = solver.solve()
     assert res
+
+def test_magistracy_and_bachelor():
+    global_config.study_weeks = 1
+    global_config.study_days = 1
+
+    university = University()
+    university.add_room(1, 120, RoomType.LECTURE,   100) 
+    university.add_room(1, 121, RoomType.LECTURE,   100) 
+    university.add_group("16-pmi", 30, GroupType.BACHELOR) 
+    university.add_group("16-pi", 30, GroupType.BACHELOR) 
+    university.add_group("16-iad", 30, GroupType.MAGISTRACY) 
+    university.add_group("17-iad", 30, GroupType.MAGISTRACY) 
+
+    university.add_teacher('Бычков И С')
+    university.add_teacher('Прогер')
+    university.add_lesson("прога", ['16-pmi'], 3, RoomType.LECTURE,  ['Бычков И С', 'Прогер'])
+    university.add_lesson("прога", ['16-iad'], 2, RoomType.LECTURE,  ['Бычков И С', 'Прогер'])
+    university.add_lesson("прога", ['16-pi'], 3, RoomType.LECTURE,  ['Бычков И С', 'Прогер'])
+    university.add_lesson("прога", ['17-iad'], 2, RoomType.LECTURE,  ['Бычков И С', 'Прогер'])
+
+    solver = Solver(university)
+    res, output = solver.solve()
+    assert res
+    for group, weeks in sorted(output.items()):
+        for _, days in sorted(weeks.items()):
+            for _, tss in sorted(days.items()):
+                for ts, _ in sorted(tss.items()):
+                    if group in [0,1]: # bachelor
+                        assert ts < global_config.bachelor_time_slots_per_day
+                    else: # magistracy
+                        assert ts >= global_config.bachelor_time_slots_per_day

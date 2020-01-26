@@ -1,4 +1,4 @@
-from enum import Flag
+from enum import Flag, Enum
 
 # Parameters
 DEBUG_PRINT = False
@@ -8,11 +8,14 @@ class Config:
         self.reset()
         
     def reset(self):
-        self.time_slots_per_day_available = 6
-        self.study_days                   = 6
-        self.study_weeks                  = 1
-        self.max_lessons_per_day          = 5
-        self.max_lessons_per_week         = 16 # 25 hours / 6 = 16.666666
+        self.bachelor_time_slots_per_day    = 6
+        self.magistracy_time_slots_per_day  = 2
+        # Expected, that lessons for magistracy AFTER bachelors
+        self.time_slots_per_day_available   = self.bachelor_time_slots_per_day + self.magistracy_time_slots_per_day
+        self.study_days                     = 6
+        self.study_weeks                    = 1
+        self.max_lessons_per_day            = 5
+        self.max_lessons_per_week           = 16 # 25 hours / 6 = 16.666666
 
 global_config = Config()
 
@@ -58,6 +61,10 @@ class RoomType(Flag):
     COMPUTER    = 1
     LECTURE     = 2
     PRACTICE    = 4
+
+class GroupType(Enum):
+    BACHELOR = 1
+    MAGISTRACY = 2
 
 def debug(string):
     global DEBUG_PRINT
