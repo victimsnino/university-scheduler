@@ -255,17 +255,21 @@ class Solver:
         for container, _, column in self.__get_groups_teachers_list():
             for ith in range(len(container)):
                 for week_i, day_i in self.university.study_weeks_and_days:
+                    indexes_by_ts = []
+                    for timeslot in range(global_config.time_slots_per_day_available):
+                        indexes_by_ts.append(eval('_get_indexes_of_timeslots_by_filter(self.model.variables, week=week_i, day=day_i, timeslot=timeslot, %s=ith)' % column))
+
+                    # select size of block for checking
                     for max_timeslots in range(3, global_config.time_slots_per_day_available+1):
-                        indexes = []
-                        val = []
-                        for timeslot in range(max_timeslots):
-                            temp_indexes = eval('_get_indexes_of_timeslots_by_filter(self.model.variables, week=week_i, day=day_i, timeslot=timeslot, %s=ith)' % column)
-                            indexes += temp_indexes
+                        for ind in range(max_timeslots, global_config.time_slots_per_day_available+1):
+                            val = []
+                            temp_indexes = []
+                            for ts in range(ind-max_timeslots, ind):
+                                v =  1 if ts == (ind-max_timeslots) or ts == (ind-1) else -1
+                                val += [v]*len(indexes_by_ts[ts])
+                                temp_indexes += indexes_by_ts[ts]
 
-                            v =  1 if timeslot == 0 or timeslot == (max_timeslots-1) else -1
-                            val += [v]*len(temp_indexes)
-
-                        _add_constraint(self.model, indexes, '<=', 1, val)
+                            _add_constraint(self.model, temp_indexes, '<=', 1, val)
 
 
     def solve(self):
@@ -337,7 +341,7 @@ class Solver:
 
         return by_group
     
-    def __get_groups_teachers_list(self):
+    def __get_groups_teachers_list(self):   
         ''' Returns tuple of (container, format for corpus tracking, column for filter) '''
         return [(self.university.groups, corpus_tracker_of_groups_format, 'group_id'), 
                 (self.university.teachers, corpus_tracker_of_teachers_format, 'teacher_id')]

@@ -206,7 +206,7 @@ def test_magistracy_and_bachelor():
                     else: # magistracy
                         assert ts >= global_config.bachelor_time_slots_per_day
 
-def test_ban_windows():
+def test_ban_windows_1():
     university = University()
     university.add_room(1, 120, RoomType.LECTURE,   100) 
     university.add_room(1, 121, RoomType.LECTURE,   100) 
@@ -217,7 +217,7 @@ def test_ban_windows():
 
     university.add_teacher('Бычков И С')
     university.add_teacher('Прогер')
-    university.add_lesson("прога", ['16-pmi'], 3, RoomType.LECTURE,  ['Бычков И С', 'Прогер'])
+    university.add_lesson("прога", ['16-pmi'], 7, RoomType.LECTURE,  ['Бычков И С', 'Прогер'])
     university.add_lesson("прога", ['16-iad'], 2, RoomType.LECTURE,  ['Бычков И С', 'Прогер'])
     university.add_lesson("прога", ['16-pi'], 3, RoomType.LECTURE,  ['Бычков И С', 'Прогер'])
     university.add_lesson("прога", ['17-iad'], 2, RoomType.LECTURE,  ['Бычков И С', 'Прогер'])
@@ -234,5 +234,34 @@ def test_ban_windows():
                         current_ts = ts
                         continue
                     
-                    assert ts - current_ts < 1
+                    assert ts - current_ts <= 1
+                    current_ts = ts
+
+def test_ban_windows_2():
+    university = University()
+    university.add_room(1, 120, RoomType.LECTURE,   100) 
+    university.add_room(1, 121, RoomType.LECTURE,   100) 
+    university.add_group("16-pmi", 30, GroupType.BACHELOR) 
+    university.add_group("16-pi", 30, GroupType.BACHELOR) 
+
+
+    university.add_teacher('Бычков И С')
+    university.add_teacher('Прогер')
+    university.add_lesson("прога", ['16-pmi'], 8, RoomType.LECTURE,  ['Бычков И С'])
+    university.add_lesson("прога", ['16-pi'], 8, RoomType.LECTURE,  ['Бычков И С'])
+
+
+    solver = Solver(university)
+    res, output = solver.solve()
+    assert res
+    for group, weeks in sorted(output.items()):
+        for _, days in sorted(weeks.items()):
+            for _, tss in sorted(days.items()):
+                current_ts = -1
+                for ts, _ in sorted(tss.items()):
+                    if current_ts == -1:
+                        current_ts = ts
+                        continue
+                    
+                    assert ts - current_ts <= 1
                     current_ts = ts
