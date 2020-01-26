@@ -244,6 +244,30 @@ class Solver:
                     indexes = eval('_get_indexes_of_timeslots_by_filter(self.model.variables, week=week, day=day, timeslot=timeslot, %s=ith)' % column)
                     _add_constraint(self.model, indexes, '==', 0)
 
+    def __constraint_ban_windows(self):
+        '''
+        Ban windows between lessons\n
+        Take all combinations of length 3,4,5....,lessons_per_day and check, that it doesn't looks like 1,0.....,0,1
+        '''
+        if global_config.time_slots_per_day_available <= 2:
+            return
+        
+        for container, _, column in self.__get_groups_teachers_list():
+            for ith in range(len(container)):
+                for week_i, day_i in self.university.study_weeks_and_days:
+                    for max_timeslots in range(3, global_config.time_slots_per_day_available+1):
+                        indexes = []
+                        val = []
+                        for timeslot in range(max_timeslots):
+                            temp_indexes = eval('_get_indexes_of_timeslots_by_filter(self.model.variables, week=week_i, day=day_i, timeslot=timeslot, %s=ith)' % column)
+                            indexes += temp_indexes
+
+                            v =  1 if timeslot == 0 or timeslot == (max_timeslots-1) else -1
+                            val += [v]*len(temp_indexes)
+
+                        _add_constraint(self.model, indexes, '<=', 1, val)
+
+
     def solve(self):
         self.__fill_lessons_to_time_slots()
 
@@ -254,6 +278,7 @@ class Solver:
         self.__constraint_max_lessons_per_week_for_teachers_or_groups()
         self.__local_constraint_lesson_after_another_lesson()
         self.__local_constraint_teacher_or_group_has_banned_ts()
+        self.__constraint_ban_windows()
 
         self.model.set_results_stream(None) # ignore standart useless output
         self.model.solve()

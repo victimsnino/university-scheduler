@@ -33,8 +33,13 @@ Done:
     * Availability for ordering lessons depend from each other (practice after lecture)
 
 * __local_constraint_teacher_or_group_has_banned_ts
-    * Some teachers can have banned timeslots -> no lessons in the such day
-    
+    * Some teacher or groups can have banned timeslots -> no lessons in the such day
+
+* __constraint_ban_windows
+    * Any teacher or group can't have window during a day
+
+* Split groups to bachelors and magistrecy for splitting by timeslots
+* It is possible to set day of week for start or end of module and count of weeks
 * Easy parser for output - parse_output_and_create_schedule
 '''
 

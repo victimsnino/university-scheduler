@@ -119,16 +119,17 @@ class Teacher(GroupOrTeacherBase):
         return self.__str__()
 
 class University:
-    def __init__(self, start_from_day_of_week = 0, end_by_day_of_week = 5, weeks = 1):
-        '''
+    '''
         If study module started not from monday and ended not by saturday, then you can pass it by args \n
         weeks - count of 'active' weeks (count of 'lines'). For example: \n
         start = 1 end = 4 weeks = 2 means: \n
-         0  1  2  3  4  5  6\n
+        |0||1||2||3||4||5||6|\n
         [ ][S][S][S][S][S][W]\n
         [S][S][S][S][S][ ][W]\n
         where S - study day, W - weekend, empty - not study
-        '''
+    '''
+    
+    def __init__(self, start_from_day_of_week = 0, end_by_day_of_week = 5, weeks = 1):
         self.corpuses = {}
         self.lessons = []
         self.groups = []

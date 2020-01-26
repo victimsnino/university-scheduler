@@ -65,7 +65,7 @@ def test_ban_changing_corpus():
     
     university = University(0,1,1)
     fill(university)
-    
+
     solver = Solver(university)
     res, _ = solver.solve()
     assert res
@@ -166,7 +166,7 @@ def test_teacher_ban_some_tss():
     university.add_room(1, 120, RoomType.LECTURE,   100) 
     university.add_group("16-pmi", 30, GroupType.BACHELOR)
     teacher = university.add_teacher('Бычков И С')
-    teacher.ban_time_slots(0, 0, 1)
+    teacher.ban_time_slots(0, 0, 0)
     university.add_lesson("прога", ['16-pmi'], 3, RoomType.LECTURE,  ['Бычков И С'])
 
     solver = Solver(university)
@@ -205,3 +205,34 @@ def test_magistracy_and_bachelor():
                         assert ts < global_config.bachelor_time_slots_per_day
                     else: # magistracy
                         assert ts >= global_config.bachelor_time_slots_per_day
+
+def test_ban_windows():
+    university = University()
+    university.add_room(1, 120, RoomType.LECTURE,   100) 
+    university.add_room(1, 121, RoomType.LECTURE,   100) 
+    university.add_group("16-pmi", 30, GroupType.BACHELOR) 
+    university.add_group("16-pi", 30, GroupType.BACHELOR) 
+    university.add_group("16-iad", 30, GroupType.MAGISTRACY) 
+    university.add_group("17-iad", 30, GroupType.MAGISTRACY) 
+
+    university.add_teacher('Бычков И С')
+    university.add_teacher('Прогер')
+    university.add_lesson("прога", ['16-pmi'], 3, RoomType.LECTURE,  ['Бычков И С', 'Прогер'])
+    university.add_lesson("прога", ['16-iad'], 2, RoomType.LECTURE,  ['Бычков И С', 'Прогер'])
+    university.add_lesson("прога", ['16-pi'], 3, RoomType.LECTURE,  ['Бычков И С', 'Прогер'])
+    university.add_lesson("прога", ['17-iad'], 2, RoomType.LECTURE,  ['Бычков И С', 'Прогер'])
+
+    solver = Solver(university)
+    res, output = solver.solve()
+    assert res
+    for group, weeks in sorted(output.items()):
+        for _, days in sorted(weeks.items()):
+            for _, tss in sorted(days.items()):
+                current_ts = -1
+                for ts, _ in sorted(tss.items()):
+                    if current_ts == -1:
+                        current_ts = ts
+                        continue
+                    
+                    assert ts - current_ts < 1
+                    current_ts = ts
