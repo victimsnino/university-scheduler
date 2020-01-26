@@ -83,7 +83,6 @@ class GroupOrTeacherBase:
             raise Exception("You should pass 1+ of parameters")
 
         self.banned_time_slots.add((week, day, timeslot))
-
     
 class Group(GroupOrTeacherBase):
     def __init__(self, group_name, size, group_type):
@@ -120,11 +119,21 @@ class Teacher(GroupOrTeacherBase):
         return self.__str__()
 
 class University:
-    def __init__(self):
+    def __init__(self, start_from_day_of_week = 0, end_by_day_of_week = 5, weeks = 1):
+        '''
+        If study module started not from monday and ended not by saturday, then you can pass it by args \n
+        weeks - count of 'active' weeks (count of 'lines'). For example: \n
+        start = 1 end = 4 weeks = 2 means: \n
+         0  1  2  3  4  5  6\n
+        [ ][S][S][S][S][S][W]\n
+        [S][S][S][S][S][ ][W]\n
+        where S - study day, W - weekend, empty - not study
+        '''
         self.corpuses = {}
         self.lessons = []
         self.groups = []
         self.teachers = []
+        self.__fill_study_days(start_from_day_of_week, end_by_day_of_week, weeks)
 
     def add_room(self, corpus_number, room_number, room_type, size):
         for _ in range(2):
@@ -196,3 +205,24 @@ class University:
                 "Lessons: " + str(self.lessons) + "\n" + \
                 "Teachers: " + str(self.teachers) + "\n" + \
                 "*****************************************************"
+
+    def __fill_study_days(self,start_from_day_of_week, end_by_day_of_week, weeks):
+        self.study_weeks_and_days = []
+        self.study_weeks = weeks
+
+        if end_by_day_of_week >= global_config.study_days:
+            raise BaseException('You pass last day of module as %s, but you have only %s study days per week' % (end_by_day_of_week, global_config.study_days))
+
+        # fill first week. it can be not full
+        for day in range(start_from_day_of_week, global_config.study_days if weeks > 1 else end_by_day_of_week+1):
+            self.study_weeks_and_days.append([0, day])
+
+        if weeks > 2:
+            for day in range(global_config.study_days):
+                for week in range(1, weeks-1):
+                    self.study_weeks_and_days.append([week, day])
+
+        # fill last week. It can be not full
+        if weeks > 1:
+            for day in range(0, end_by_day_of_week+1):
+                self.study_weeks_and_days.append([weeks-1, day])

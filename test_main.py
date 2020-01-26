@@ -46,32 +46,32 @@ def test_1_room():
     res, _ = solver.solve()
     assert res
 
-def test_ban_changin_corpus():
-    global_config.study_days =  1
-    global_config.study_weeks = 1
+def test_ban_changing_corpus():
 
-    university = University()
-    university.add_room(1, 120, RoomType.LECTURE,   100) 
-    university.add_room(2, 121, RoomType.PRACTICE,  30) 
-    university.add_group("16-pmi", 30, GroupType.BACHELOR)
-    university.add_teacher('Бычков И С')
-    university.add_lesson("прога", ['16-pmi'], 1, RoomType.LECTURE,  ['Бычков И С'])
-    university.add_lesson("прога", ['16-pmi'], 1, RoomType.PRACTICE,  ['Бычков И С'])
+    def fill(university):
+        university.add_room(1, 120, RoomType.LECTURE,   100) 
+        university.add_room(2, 121, RoomType.PRACTICE,  30) 
+        university.add_group("16-pmi", 30, GroupType.BACHELOR)
+        university.add_teacher('Бычков И С')
+        university.add_lesson("прога", ['16-pmi'], 1, RoomType.LECTURE,  ['Бычков И С'])
+        university.add_lesson("прога", ['16-pmi'], 1, RoomType.PRACTICE,  ['Бычков И С'])
+
+    university = University(0,0,1)
+    fill(university)
 
     solver = Solver(university)
     res, _ = solver.solve()
     assert not res
     
-    global_config.study_days =  2
+    university = University(0,1,1)
+    fill(university)
+    
     solver = Solver(university)
     res, _ = solver.solve()
     assert res
     
 def test_multiple_teachers():
-    global_config.study_days =  1
-    global_config.study_weeks = 1
-
-    university = University()
+    university = University(0, 0, 1)
     university.add_room(1, 120, RoomType.LECTURE,   100) 
     university.add_room(2, 121, RoomType.PRACTICE,  30) 
     university.add_group("16-pmi", 30, GroupType.BACHELOR)
@@ -95,10 +95,7 @@ def test_multiple_teachers():
     assert res
 
 def test_order_lessons():
-    global_config.study_days =  6
-    global_config.study_weeks = 2
-
-    university = University()
+    university = University(0,5,2)
     university.add_room(1, 121, RoomType.PRACTICE,  30) 
     university.add_room(1, 120, RoomType.LECTURE,   100) 
     university.add_group("16-pmi", 30, GroupType.BACHELOR)
@@ -128,10 +125,8 @@ def test_order_lessons():
 
 def test_max_lessons_per_day():
     global_config.max_lessons_per_day = 2
-    global_config.study_days = 1
-    global_config.study_weeks = 1
 
-    university = University()
+    university = University(0,0,1)
     university.add_room(1, 120, RoomType.LECTURE,   100) 
     university.add_group("16-pmi", 30, GroupType.BACHELOR)
     university.add_teacher('Бычков И С')
@@ -148,9 +143,8 @@ def test_max_lessons_per_day():
 
 def test_max_lessons_per_week():
     global_config.max_lessons_per_week = 2
-    global_config.study_weeks = 1
 
-    university = University()
+    university = University(0,5,1)
     university.add_room(1, 120, RoomType.LECTURE,   100) 
     university.add_group("16-pmi", 30, GroupType.BACHELOR)
     university.add_teacher('Бычков И С')
@@ -166,11 +160,9 @@ def test_max_lessons_per_week():
     assert res
 
 def test_teacher_ban_some_tss():
-    global_config.study_weeks = 1
-    global_config.study_days = 1
     global_config.time_slots_per_day_available = 3
 
-    university = University()
+    university = University(0,0,1)
     university.add_room(1, 120, RoomType.LECTURE,   100) 
     university.add_group("16-pmi", 30, GroupType.BACHELOR)
     teacher = university.add_teacher('Бычков И С')
@@ -187,10 +179,7 @@ def test_teacher_ban_some_tss():
     assert res
 
 def test_magistracy_and_bachelor():
-    global_config.study_weeks = 1
-    global_config.study_days = 1
-
-    university = University()
+    university = University(0,0,1)
     university.add_room(1, 120, RoomType.LECTURE,   100) 
     university.add_room(1, 121, RoomType.LECTURE,   100) 
     university.add_group("16-pmi", 30, GroupType.BACHELOR) 

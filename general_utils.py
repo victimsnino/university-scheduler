@@ -13,7 +13,6 @@ class Config:
         # Expected, that lessons for magistracy AFTER bachelors
         self.time_slots_per_day_available   = self.bachelor_time_slots_per_day + self.magistracy_time_slots_per_day
         self.study_days                     = 6
-        self.study_weeks                    = 1
         self.max_lessons_per_day            = 5
         self.max_lessons_per_week           = 16 # 25 hours / 6 = 16.666666
 
