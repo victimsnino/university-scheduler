@@ -94,6 +94,28 @@ def test_multiple_teachers():
     res, _ = solver.solve()
     assert res
 
+def test_count_of_lessons():
+    university = University()
+    university.add_room(1, 121, RoomType.PRACTICE,  30) 
+    university.add_room(1, 120, RoomType.LECTURE,   100) 
+    university.add_group("16-pmi", 30, GroupType.BACHELOR)
+    university.add_teacher('Бычков И С')
+    lecture_count = 10
+    practice = university.add_lesson("прога", ['16-pmi'], lecture_count, RoomType.PRACTICE,  ['Бычков И С'])
+
+    solver = Solver(university)
+    res, output = solver.solve()
+    assert res
+
+    index = 0
+    total_lessons = 0
+    for group, weeks in sorted(output.items()):
+            for week, days in sorted(weeks.items()):
+                for day, tss in sorted(days.items()):
+                    for ts, listt in sorted(tss.items()):
+                        total_lessons += 1
+    assert total_lessons == lecture_count
+
 def test_order_lessons():
     university = University(0,5,2)
     university.add_room(1, 121, RoomType.PRACTICE,  30) 
@@ -247,8 +269,8 @@ def test_ban_windows_2():
 
     university.add_teacher('Бычков И С')
     university.add_teacher('Прогер')
-    university.add_lesson("прога", ['16-pmi'], 8, RoomType.LECTURE,  ['Бычков И С'])
-    university.add_lesson("прога", ['16-pi'], 8, RoomType.LECTURE,  ['Бычков И С'])
+    university.add_lesson("прога", ['16-pmi'], 10, RoomType.LECTURE,  ['Бычков И С', 'Прогер'])
+    university.add_lesson("прога", ['16-pi'], 10, RoomType.LECTURE,  ['Бычков И С', 'Прогер'])
 
 
     solver = Solver(university)
@@ -265,3 +287,32 @@ def test_ban_windows_2():
                     
                     assert ts - current_ts <= 1
                     current_ts = ts
+
+def test_one_teacher_per_lesson():
+    university = University()
+    university.add_room(1, 120, RoomType.LECTURE,   100) 
+    university.add_room(1, 121, RoomType.LECTURE,   100) 
+    university.add_group("16-pmi", 30, GroupType.BACHELOR) 
+    university.add_group("16-pi", 30, GroupType.BACHELOR) 
+
+
+    university.add_teacher('Бычков И С')
+    university.add_teacher('Прогер')
+    university.add_lesson("прога", ['16-pmi'], 10, RoomType.LECTURE,  ['Бычков И С', 'Прогер'])
+    university.add_lesson("прога", ['16-pi'], 10, RoomType.LECTURE,  ['Бычков И С', 'Прогер'])
+
+
+    solver = Solver(university)
+    res, output = solver.solve()
+    assert res
+    for group, weeks in sorted(output.items()):
+        teachers = set()
+        for _, days in sorted(weeks.items()):
+            for _, tss in sorted(days.items()):
+                for ts, data in sorted(tss.items()):
+                    _, _, _, _, teacher, _ = data
+                    teachers.add(teacher)
+
+        assert len(teachers) == 1
+
+

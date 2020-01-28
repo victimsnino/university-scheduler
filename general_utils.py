@@ -55,6 +55,11 @@ corpus_tracker_of_teachers_format = corpus_corpus_prefix    +   "%d"    +\
                                     corpus_day_prefix       +   "%d"    +\
                                     corpus_teacher_prefix   +   "%d"
 
+teacher_per_lesson_teacher = '_teacherid_'
+teacher_per_lesson_lesson = '_forlesson_'
+teachers_per_lesson_format =    teacher_per_lesson_lesson   + "%s"  +\
+                                teacher_per_lesson_teacher  + "%d"
+
 
 class RoomType(Flag):
     COMPUTER    = 1

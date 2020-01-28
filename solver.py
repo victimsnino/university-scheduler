@@ -5,8 +5,6 @@ from university import University, Lesson, Teacher
 import copy
 
 def _add_constraint(my_model, indexes_or_variables, sense, value, val = None):
-    debug(str(indexes_or_variables) + str(sense) + str(value))
-
     valid_operations = ["<=", ">=", "=="]
     senses = ["L", "G", "E"]
     if sense not in valid_operations:
@@ -23,15 +21,16 @@ def _add_constraint(my_model, indexes_or_variables, sense, value, val = None):
 def _get_indexes_by_name(variables, search, is_just_regex = False):
     if is_just_regex == False:
         search = r'.*' + search.replace('[', r'\[').replace(']', r'\]') + r'.*'
-    debug('_get_indexes_by_name ' + search)
+
     indexes = []
     for name in variables.get_names():
         if not re.search(search, name) is None:
-            debug('Matched! ' + name)
             indexes.append(variables.get_indices(name))
     return indexes
 
-def _get_indexes_of_timeslots_by_filter(variables, week = None, day = None, corpus = None, room = None, timeslot = None, lesson = None, group_id = None, type = None, teacher_id = None):
+def _get_indexes_of_timeslots_by_filter(variables, week = None, day = None, corpus = None, 
+                                        room = None, timeslot = None, lesson = None, group_id = None, 
+                                        type = None, teacher_id = None):
     search = r'.*'
     if not week is None:
         search += week_prefix + str(week)
@@ -49,7 +48,7 @@ def _get_indexes_of_timeslots_by_filter(variables, week = None, day = None, corp
         search += timeslot_prefix + str(timeslot)
         search += r'.*'
     if not lesson is None:
-        search += lesson_prefix + str(timeslot)
+        search += lesson_prefix + str(lesson.replace('[', r'\[').replace(']', r'\]'))
         search += r'.*'
     if not group_id is None:
         search +=   group_prefix    + \
@@ -60,12 +59,12 @@ def _get_indexes_of_timeslots_by_filter(variables, week = None, day = None, corp
     if not teacher_id is None:
         search +=   teacher_prefix  + str(teacher_id)
         search += r'.*'
-
-    return _get_indexes_by_name(variables, search, True)
-    
     if not type is None:
         search += type_prefix + str(type)
         search += '.*'
+
+    return _get_indexes_by_name(variables, search, True)
+
 
 def _get_variables_from_general_variable(variable):
     template = time_slot_format.replace("%d", r"(\d+)").replace("%s", "(.*)")
@@ -127,6 +126,7 @@ class Solver:
                             _add_constraint(self.model, indexes, '<=', 1)
 
         self.__fill_dummy_variables_for_tracking_corpuses()
+        self.__fill_dummy_variables_for_tracking_teachers()
             
     def __fill_dummy_variables_for_tracking_corpuses(self):
         ''' 
@@ -150,16 +150,35 @@ class Solver:
 
                         _add_constraint(self.model, lections_indexes + corpus_tracker_index, '>=', -1*(global_config.time_slots_per_day_available-1), 
                                         [1]*len(lections_indexes)+[-1*global_config.time_slots_per_day_available])
-                                
+
+    def __fill_dummy_variables_for_tracking_teachers(self):
+        ''' 
+        Add dummy variables for teachers tracking (which teachers marked for current lesson during module)
+        '''
+        for lesson in self.university.lessons:
+            for teacher_i in lesson.teacher_indexes:
+                teacher_tracker_index = [self.model.variables.add(obj=[0],
+                                                                  lb=[0], 
+                                                                  ub=[1],
+                                                                  types=[self.model.variables.type.integer],
+                                                                  names=[teachers_per_lesson_format % (lesson.full_name(), teacher_i)])[0]]
+
+
+                lections_indexes = _get_indexes_of_timeslots_by_filter(self.model.variables, lesson=lesson.full_name(), teacher_id=teacher_i)
+
+                _add_constraint(self.model, lections_indexes + teacher_tracker_index, '<=', 0, 
+                                [1]*len(lections_indexes)+[-1*lesson.count])
+
+                _add_constraint(self.model, lections_indexes + teacher_tracker_index, '>=', -1*(lesson.count-1), 
+                                [1]*len(lections_indexes)+[-1*lesson.count])
+
     def __constraint_total_count_of_lessons(self):
         ''' 
         Every lesson should have a count of lessons, which we request \n
         Therefore we should add constraints for it (count of all lessons in timeslots == requested)
         '''
         for lesson in self.university.lessons:
-            _add_constraint(self.model, _get_indexes_by_name(self.model.variables, lesson_prefix+lesson.full_name()), '==', lesson.count)
-        
-        debug(self.model.variables.get_names())
+            _add_constraint(self.model, _get_indexes_of_timeslots_by_filter(self.model.variables, lesson=lesson.full_name()), '==', lesson.count)
 
     def __constraint_group_or_teacher_only_in_one_room_per_timeslot(self):
         for container, _, column in self.__get_groups_teachers_list():
@@ -209,14 +228,14 @@ class Solver:
             if len(lesson.should_be_after) == 0:
                 continue
 
-            original_indexes = _get_indexes_by_name(self.model.variables, lesson.full_name())
+            original_indexes = _get_indexes_of_timeslots_by_filter(self.model.variables, lesson=lesson.full_name())
             original_indexes = sorted(original_indexes, key=lambda index: _calculate_cost_of_lesson_by_position(self.model.variables.get_names(index)))
             original_costs   = [_calculate_cost_of_lesson_by_position(self.model.variables.get_names(i)) for i in original_indexes]
 
             # lection
             for index_after in lesson.should_be_after:
                 should_be_after_this = self.university.lessons[index_after]
-                should_be_after_indexes = _get_indexes_by_name(self.model.variables, should_be_after_this.full_name())
+                should_be_after_indexes = _get_indexes_of_timeslots_by_filter(self.model.variables, lesson=should_be_after_this.full_name())
                 should_be_after_indexes = sorted(should_be_after_indexes, key=lambda index: _calculate_cost_of_lesson_by_position(self.model.variables.get_names(index)))
                 after_costs   = [_calculate_cost_of_lesson_by_position(self.model.variables.get_names(i)) for i in should_be_after_indexes]
                 set_after_costs = sorted(list(set(after_costs)))
@@ -271,6 +290,13 @@ class Solver:
 
                             _add_constraint(self.model, temp_indexes, '<=', 1, val)
 
+    def __constraint_one_teacher_per_lessons(self):
+        for lesson in self.university.lessons:
+            indexes = []
+            for teacher_i in lesson.teacher_indexes:
+                indexes += _get_indexes_by_name(self.model.variables, teachers_per_lesson_format % (lesson.full_name(), teacher_i))
+
+            _add_constraint(self.model, indexes, '<=', 1)
 
     def solve(self):
         self.__fill_lessons_to_time_slots()
@@ -283,6 +309,9 @@ class Solver:
         self.__local_constraint_lesson_after_another_lesson()
         self.__local_constraint_teacher_or_group_has_banned_ts()
         self.__constraint_ban_windows()
+        self.__constraint_one_teacher_per_lessons()
+
+        debug(self.model.variables.get_names())
 
         self.model.set_results_stream(None) # ignore standart useless output
         self.model.solve()

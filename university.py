@@ -128,7 +128,7 @@ class University:
         [S][S][S][S][S][ ][W]\n
         where S - study day, W - weekend, empty - not study
     '''
-    
+
     def __init__(self, start_from_day_of_week = 0, end_by_day_of_week = 5, weeks = 1):
         self.corpuses = {}
         self.lessons = []

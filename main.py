@@ -37,6 +37,8 @@ Done:
 
 * __constraint_ban_windows
     * Any teacher or group can't have window during a day
+* __constraint_one_teacher_per_lessons
+    * Only one teacher conducts one lesson during all module
 
 * Split groups to bachelors and magistrecy for splitting by timeslots
 * It is possible to set day of week for start or end of module and count of weeks
