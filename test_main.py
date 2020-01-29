@@ -7,6 +7,7 @@ import copy
 
 def setup_function():
     global_config.reset()
+    print()
 
 def test_empty():
     university = University()
@@ -315,4 +316,34 @@ def test_one_teacher_per_lesson():
 
         assert len(teachers) == 1
 
+def test_full_module_for_two_groups():
+    weeks = 12
+    university = University(start_from_day_of_week = 3, end_by_day_of_week=1,weeks=weeks)
+    
+    LVOV = 1
+    RADIK = 2
+
+    university.add_room(RADIK, 207, RoomType.LECTURE | RoomType.PRACTICE, 40) 
+    university.add_room(RADIK, 301, RoomType.COMPUTER,  30) 
+    university.add_room(RADIK, 302, RoomType.COMPUTER,  30) 
+    university.add_room(LVOV,  308, RoomType.PRACTICE,  25) 
+
+    university.add_group("16-pmi", 22, GroupType.BACHELOR) 
+    #university.add_group("16-pi", 30, GroupType.BACHELOR) 
+
+
+    university.add_teacher('Колданов')
+    university.add_teacher('Бабкина')
+    university.add_teacher('Фролова')
+    university.add_teacher('Слащинин')
+    university.add_teacher('Зеленов')
+
+    university.add_lesson("Случайные процессы", ['16-pmi'], 2*(weeks-1), RoomType.LECTURE,  ['Колданов'])
+    university.add_lesson("Научный семинар", ['16-pmi'], int((weeks-1)/2), RoomType.COMPUTER,  ['Бабкина'])
+    university.add_lesson("Академическое пиьсмо", ['16-pmi'], (weeks-1), RoomType.PRACTICE,  ['Фролова'])
+    university.add_lesson("Компьютерная лингвистика", ['16-pmi'], 2*(weeks-1), RoomType.LECTURE,  ['Слащинин'])
+    university.add_lesson("Интернет вещей", ['16-pmi'], 2*(weeks-1), RoomType.COMPUTER,  ['Зеленов'])
+    solver = Solver(university)
+    res, output = solver.solve()
+    assert res
 

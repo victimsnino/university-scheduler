@@ -162,6 +162,8 @@ class University:
         Groups must have created for this moment! \n
         Teachers - list of compatible teachers for this lesson.
         '''
+        if type(count) is float:
+            raise Exception("You can't pass {0} as count of lessons!".format(count))
         group_indexes = []
         for group_i in range(len(self.groups)):
             if self.groups[group_i].group_name in group_names:
