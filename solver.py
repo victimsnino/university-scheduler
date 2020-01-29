@@ -6,6 +6,9 @@ import copy
 import progressbar
 from functools import wraps
 
+
+timeslots_filter_cache = {}
+
 def _add_constraint(my_model, indexes_or_variables, sense, value, val = None):
     valid_operations = ["<=", ">=", "=="]
     senses = ["L", "G", "E"]
@@ -35,6 +38,7 @@ def _get_indexes_by_name(variables, search, is_just_regex = False, source = None
 def _get_indexes_of_timeslots_by_filter(variables, week = None, day = None, corpus = None, 
                                         room = None, timeslot = None, lesson = None, group_id = None, 
                                         type = None, teacher_id = None, source = None):
+    global timeslots_filter_cache
     search = r'.*'
     if not week is None:
         search += week_prefix + str(week)
@@ -67,7 +71,24 @@ def _get_indexes_of_timeslots_by_filter(variables, week = None, day = None, corp
         search += type_prefix + str(type)
         search += '.*'
 
-    return _get_indexes_by_name(variables, search, True, source)
+    cached = timeslots_filter_cache.setdefault(week, {})
+    cached = cached.setdefault(day, {})
+    cached = cached.setdefault(corpus, {})
+    cached = cached.setdefault(room, {})
+    cached = cached.setdefault(timeslot, {})
+    cached = cached.setdefault(lesson, {})
+    cached = cached.setdefault(group_id, {})
+    cached = cached.setdefault(type, {})
+    cached = cached.setdefault(teacher_id, {})
+    cached = cached.setdefault(str(source), {})
+    if 'cache' in cached:
+        return cached['cache']
+
+    result = _get_indexes_by_name(variables, search, True, source)
+    cached['cache'] = result
+
+    return result
+                        
 
 def _get_corpus_tracker_by_filter(variables, corpus = None, week = None, day = None, group_id = None, teacher_id = None, source = None):
     search = r'.*'
@@ -158,6 +179,9 @@ class Solver:
         self.model = cplex.Cplex()
         self.university = university
         self.model.objective.set_sense(self.model.objective.sense.minimize)
+        
+        global timeslots_filter_cache
+        timeslots_filter_cache.clear()
     
     def __fill_lessons_to_time_slots(self):
         ''' 
