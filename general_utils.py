@@ -15,7 +15,10 @@ class Config:
         self.study_days                     = 6
         self.max_lessons_per_day            = 5
         self.max_lessons_per_week           = 16 # 25 hours / 6 = 16.666666
-        self.windows_is_hard_constraint     = True
+        # -1 -> hard constraint, 0 - without constraint, >= 1  - penalty for soft costraint
+        self.windows_penalty                = -1
+        # windows for groups is more critical thing then for teachers.
+        self.windows_groups_multiplier      = 2
 
 global_config = Config()
 

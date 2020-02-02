@@ -1,6 +1,6 @@
 import pytest
 
-from university import University, Lesson
+from university import *
 from general_utils import RoomType, debug, set_debug, Config, global_config, GroupType
 from solver import Solver
 import copy
@@ -230,6 +230,8 @@ def test_magistracy_and_bachelor():
                         assert ts >= global_config.bachelor_time_slots_per_day
 
 def test_ban_windows_1():
+    global_config.windows_penalty = -1
+
     university = University()
     university.add_room(1, 120, RoomType.LECTURE,   100) 
     university.add_room(1, 121, RoomType.LECTURE,   100) 
@@ -261,6 +263,8 @@ def test_ban_windows_1():
                     current_ts = ts
 
 def test_ban_windows_2():
+    global_config.windows_penalty = -1
+
     university = University()
     university.add_room(1, 120, RoomType.LECTURE,   100) 
     university.add_room(1, 121, RoomType.LECTURE,   100) 
@@ -288,6 +292,31 @@ def test_ban_windows_2():
                     
                     assert ts - current_ts <= 1
                     current_ts = ts
+
+def test_ban_windows_soft():
+    global_config.time_slots_per_day_available = 4
+    
+    university = University(0, 0, 1)
+
+    university.add_room(1, 120, RoomType.LECTURE,   100) 
+    university.add_group("16-pmi", 30, GroupType.BACHELOR) 
+
+
+    teacher = university.add_teacher('Бычков И С')
+    teacher.ban_time_slots(0, 0, 1)
+    university.add_lesson("прога", ['16-pmi'], 3, RoomType.LECTURE,  ['Бычков И С'])
+
+    solver = Solver(university)
+
+    # in this case it is expected, that solution doesn't exists
+    global_config.windows_penalty = -1
+    res, output = solver.solve()
+    assert not res
+
+    global_config.windows_penalty = 1
+    solver1 = Solver(university)
+    res, _ = solver1.solve()
+    assert res
 
 def test_one_teacher_per_lesson():
     university = University()

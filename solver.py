@@ -185,7 +185,7 @@ def _get_timeslot_for_groups_or_teachers(function):
             for ith, teacher_or_group in enumerate(container):
                 indexes = eval('_get_indexes_of_timeslots_by_filter(self.model.variables, source=source, %s=ith)' % column)
                 temp = self.model.variables.get_names(indexes)
-                function(self, temp, ith=ith, format_out=format_out, teacher_or_group=teacher_or_group, **kwargs)
+                function(self, temp, ith=ith, format_out=format_out, teacher_or_group=teacher_or_group, column=column, **kwargs)
     return _decorator
 
 def _get_timeslot_for_lessons(function):
@@ -357,12 +357,12 @@ class Solver:
 
     @_get_timeslots_for_week_and_day
     @_get_timeslot_for_groups_or_teachers
-    def __constraint_ban_windows(self, source=None, **kwargs):
+    def __constraint_ban_windows(self, source=None, column = None, **kwargs):
         '''
         Ban windows between lessons\n
         Take all combinations of length 3,4,5....,lessons_per_day and check, that it doesn't looks like 1,0.....,0,1
         '''
-        if global_config.time_slots_per_day_available <= 2 or global_config.windows_is_hard_constraint == False:
+        if global_config.time_slots_per_day_available <= 2 or global_config.windows_penalty == 0:
             return
         
         indexes_by_ts = []
@@ -379,8 +379,19 @@ class Solver:
                     val += [v]*len(indexes_by_ts[ts])
                     temp_indexes += indexes_by_ts[ts]
 
-                _add_constraint(self.model, temp_indexes, '<=', 1, val)
+                if global_config.windows_penalty > 0: # A.K.A Hard constraint
+                    obj = global_config.windows_penalty*(max_timeslots-2)
+                    if column == 'group_id':
+                        obj *= global_config.windows_groups_multiplier
 
+                    temp_indexes.append(self.model.variables.add(   obj=[obj],
+                                                                    lb=[0], 
+                                                                    ub=[1],
+                                                                    types=[self.model.variables.type.integer])[0])
+                    val.append(-2)
+
+                _add_constraint(self.model, temp_indexes, '<=', 1, val)
+    
     def __constraint_one_teacher_per_lessons(self):
         for lesson in self.university.lessons:
             indexes = []
@@ -418,6 +429,9 @@ class Solver:
     def __parse_output_and_create_schedule(self):
         # solution.get_status() returns an integer code
         print("Solution status = ",     self.model.solution.get_status(), ":", self.model.solution.status[self.model.solution.get_status()])
+        if (self.model.solution.get_status() == 1 or self.model.solution.get_status() == 101):
+            print("Value: ", self.model.solution.get_objective_value())
+            
         if self.model.solution.get_status() != 1 and self.model.solution.get_status() != 101:
             return None
 
