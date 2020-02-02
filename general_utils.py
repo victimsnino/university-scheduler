@@ -15,6 +15,7 @@ class Config:
         self.study_days                     = 6
         self.max_lessons_per_day            = 5
         self.max_lessons_per_week           = 16 # 25 hours / 6 = 16.666666
+        self.windows_is_hard_constraint     = True
 
 global_config = Config()
 

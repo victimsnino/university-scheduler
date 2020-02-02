@@ -37,6 +37,7 @@ Done:
 
 * __constraint_ban_windows
     * Any teacher or group can't have window during a day
+    
 * __constraint_one_teacher_per_lessons
     * Only one teacher conducts one lesson during all module
 
