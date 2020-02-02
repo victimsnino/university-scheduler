@@ -181,11 +181,11 @@ def _get_corpus_tracker_for_groups_or_teachers(function):
 def _get_timeslot_for_groups_or_teachers(function):
     @wraps(function)
     def _decorator(self, source=None, **kwargs):
-        for container, _, column in self._get_groups_teachers_list():
-            for ith, _ in enumerate(container):
+        for container, format_out, column in self._get_groups_teachers_list():
+            for ith, teacher_or_group in enumerate(container):
                 indexes = eval('_get_indexes_of_timeslots_by_filter(self.model.variables, source=source, %s=ith)' % column)
                 temp = self.model.variables.get_names(indexes)
-                function(self, temp, ith=ith, **kwargs)
+                function(self, temp, ith=ith, format_out=format_out, teacher_or_group=teacher_or_group, **kwargs)
     return _decorator
 
 def _get_timeslot_for_lessons(function):
@@ -237,25 +237,24 @@ class Solver:
 
     @_get_timeslots_for_corpuses
     @_get_timeslots_for_week_and_day
-    def __fill_dummy_variables_for_tracking_corpuses(self, source = None, week_i = None, day_i = None, corpus_i = None, **kwargs):
+    @_get_timeslot_for_groups_or_teachers
+    def __fill_dummy_variables_for_tracking_corpuses(self, source = None, week_i = None, day_i = None, corpus_i = None, format_out = None, ith=None,  **kwargs):
         ''' 
         Add dummy variables for corpus tracking (Group or teacher has lection in i-th corpus)
         '''
-        for container, format_out, column in self._get_groups_teachers_list():
-            for ith, _ in enumerate(container):
-                corpus_tracker_index = [self.model.variables.add(obj=[0],
-                                                                lb=[0], 
-                                                                ub=[1],
-                                                                types=[self.model.variables.type.integer],
-                                                                names=[format_out % ( corpus_i, week_i, day_i, ith)])[0]]
+        corpus_tracker_index = [self.model.variables.add(obj=[0],
+                                                        lb=[0], 
+                                                        ub=[1],
+                                                        types=[self.model.variables.type.integer],
+                                                        names=[format_out % ( corpus_i, week_i, day_i, ith)])[0]]
 
-                lections_indexes = eval('_get_indexes_of_timeslots_by_filter(self.model.variables, %s=ith, source=source)' % column)
+        lections_indexes = source
 
-                _add_constraint(self.model, lections_indexes + corpus_tracker_index, '<=', 0, 
-                                [1]*len(lections_indexes)+[-1*global_config.time_slots_per_day_available])
+        _add_constraint(self.model, lections_indexes + corpus_tracker_index, '<=', 0, 
+                        [1]*len(lections_indexes)+[-1*global_config.time_slots_per_day_available])
 
-                _add_constraint(self.model, lections_indexes + corpus_tracker_index, '>=', -1*(global_config.time_slots_per_day_available-1), 
-                                [1]*len(lections_indexes)+[-1*global_config.time_slots_per_day_available])
+        _add_constraint(self.model, lections_indexes + corpus_tracker_index, '>=', -1*(global_config.time_slots_per_day_available-1), 
+                        [1]*len(lections_indexes)+[-1*global_config.time_slots_per_day_available])
 
     @_get_timeslot_for_lessons
     def __fill_dummy_variables_for_tracking_teachers(self, source = None, lesson=None, **kwargs):
@@ -298,24 +297,20 @@ class Solver:
         _add_constraint(self.model, source, '<=', 1)
 
     @_get_timeslots_for_week_and_day
+    @_get_timeslot_for_groups_or_teachers
     def __constraint_max_lessons_per_day_for_teachers_or_groups(self, source=None, **kwargs):
         '''
         Every teacher or group can be busy only limited count of lessons per day
         '''
-        for container, _, column in self._get_groups_teachers_list():
-            for ith, _ in enumerate(container):
-                indexes = eval("_get_indexes_of_timeslots_by_filter(self.model.variables, source=source, %s=ith)" % column)
-                _add_constraint(self.model, indexes, '<=', global_config.max_lessons_per_day)
+        _add_constraint(self.model, source, '<=', global_config.max_lessons_per_day)
     
     @_get_timeslots_for_week_only
+    @_get_timeslot_for_groups_or_teachers
     def __constraint_max_lessons_per_week_for_teachers_or_groups(self, source=None, **kwargs):
         '''
         Every teacher or group can be busy only limited count of lessons per week
         '''
-        for container, _, column in self._get_groups_teachers_list():
-            for ith, _ in enumerate(container):
-                indexes = eval("_get_indexes_of_timeslots_by_filter(self.model.variables, source=source, %s=ith)" % column)
-                _add_constraint(self.model, indexes, '<=', global_config.max_lessons_per_week)
+        _add_constraint(self.model, source, '<=', global_config.max_lessons_per_week)
 
     def __local_constraint_lesson_after_another_lesson(self):
         '''
@@ -354,12 +349,11 @@ class Solver:
                     _add_constraint(self.model, should_be_after_indexes[:after_till_index]+original_indexes[:original_till_index], '>=', 0,
                                     [float(lesson.count/should_be_after_this.count)]*after_till_index+[-1]*original_till_index)
 
-    def __local_constraint_teacher_or_group_has_banned_ts(self):
-        for container, _, column in self._get_groups_teachers_list():
-            for ith, teacher_or_group in enumerate(container):
-                for week, day, timeslot in teacher_or_group.banned_time_slots:
-                    indexes = eval('_get_indexes_of_timeslots_by_filter(self.model.variables, week=week, day=day, timeslot=timeslot, %s=ith)' % column)
-                    _add_constraint(self.model, indexes, '==', 0)
+    @_get_timeslot_for_groups_or_teachers
+    def __local_constraint_teacher_or_group_has_banned_ts(self, source = None, teacher_or_group = None, **kwargs):
+        for week, day, timeslot in teacher_or_group.banned_time_slots:
+            indexes = _get_indexes_of_timeslots_by_filter(self.model.variables, week=week, day=day, timeslot=timeslot, source=source)
+            _add_constraint(self.model, indexes, '==', 0)
 
     @_get_timeslots_for_week_and_day
     @_get_timeslot_for_groups_or_teachers
