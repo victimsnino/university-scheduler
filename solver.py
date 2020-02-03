@@ -15,6 +15,9 @@ def _add_constraint(my_model, indexes_or_variables, sense, value, val = None):
     if sense not in valid_operations:
         raise Exception("Not valid operation! %s" % sense)
 
+    if len(indexes_or_variables) == 0:
+        raise Exception('List of indexes is empty!')
+
     if val is None:
         val = [1.0]*len(indexes_or_variables)
 
@@ -99,6 +102,7 @@ def _get_variables_from_general_variable(variable):
     week = int(week)
     day = int(day)
     ts = int(ts)
+    lesson = int(lesson)
     group_ids = eval(group_ids)
     _type = eval(_type)
     return [week, day, corpus, room, ts, lesson,  group_ids,  _type, teacher]
@@ -338,10 +342,17 @@ class Solver:
         for week, day, timeslot in teacher_or_group.banned_time_slots:
             if week is None:
                 week = r'.*'
+            elif week >= self.university.study_weeks:
+                continue
 
             if day is None:
                 day = r'.*'
+            elif day >= global_config.study_days:
+                continue
 
+            if timeslot >= global_config.time_slots_per_day_available:
+                continue
+            
             indexes = _get_indexes_of_timeslots_by_filter(self.model.variables, week=week, day=day, timeslot=timeslot, source=source)
             _add_constraint(self.model, indexes, '==', 0)
 
@@ -475,7 +486,7 @@ class Solver:
                     temp[ts] = {}
                 temp_list = copy.deepcopy(group_ids)
                 temp_list.remove(group_id)
-                temp[ts] = [int(corpus), int(room), lesson, _type, int(teacher), temp_list]
+                temp[ts] = [int(corpus), int(room), self.university.lessons[lesson].lesson_name, _type, int(teacher), temp_list]
 
         for group, weeks in sorted(by_group.items()):
             for week, days in sorted(weeks.items()):

@@ -79,7 +79,6 @@ def test_multiple_teachers():
     university.add_group("16-pmi", 30, GroupType.BACHELOR)
     university.add_group("17-pmi", 30, GroupType.BACHELOR)
     university.add_teacher('Бычков И С')
-    university.add_teacher('Фейк')
 
     temp_university = copy.deepcopy(university)
     university.add_lesson("прога", ['16-pmi'], 1, RoomType.LECTURE,  ['Бычков И С'])
@@ -88,7 +87,7 @@ def test_multiple_teachers():
     solver = Solver(university)
     res, _ = solver.solve()
     assert not res
-
+    temp_university.add_teacher('Фейк')
     temp_university.add_lesson("прога", ['16-pmi'], 1, RoomType.LECTURE,  ['Бычков И С', 'Фейк'])
     temp_university.add_lesson("прога", ['17-pmi'], 1, RoomType.PRACTICE,  ['Бычков И С', 'Фейк'])
 
@@ -345,8 +344,6 @@ def test_one_teacher_per_lesson():
                     teachers.add(teacher)
 
         assert len(teachers) == 1
-    
-    open_as_html(output, university)
 
 def test_full_module_for_two_groups():
     weeks = 12
@@ -368,13 +365,13 @@ def test_full_module_for_two_groups():
     university.add_teacher('Бабкина')
     university.add_teacher('Фролова')
     university.add_teacher('Слащинин')
-    #university.add_teacher('Зеленов')
+    university.add_teacher('Зеленов')
 
     university.add_lesson("СП", ['16-pmi'], 22, RoomType.LECTURE,  ['Колданов'])
     university.add_lesson("НС", ['16-pmi'], 10, RoomType.COMPUTER,  ['Бабкина'])
     university.add_lesson("АП", ['16-pmi'], 12, RoomType.PRACTICE,  ['Фролова'])
     university.add_lesson("КЛ", ['16-pmi'], 22, RoomType.LECTURE,  ['Слащинин'])
-   # university.add_lesson("ИВ", ['16-pmi'], 22, RoomType.COMPUTER,  ['Зеленов'])
+    university.add_lesson("ИВ", ['16-pmi'], 22, RoomType.COMPUTER,  ['Зеленов'])
     solver = Solver(university)
     res, output = solver.solve()
     assert res
