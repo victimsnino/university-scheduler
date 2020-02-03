@@ -64,28 +64,27 @@ def _get_indexes_of_timeslots_by_filter(variables, week = r'.*', day = r'.*', co
                 r',? ?.*\]'
     search += type_prefix       + str(type)
     search += teacher_prefix    + str(teacher_id)
+    search += '$'
 
     if 'None' in search:
         raise Exception('None in search: '+search)
     return _get_indexes_by_name(variables, search, True, source)
                         
-def _get_corpus_tracker_by_filter(variables, corpus = None, week = None, day = None, group_id = None, teacher_id = None, source = None):
-    search = r'.*'
-    if not corpus is None:
-        search += corpus_corpus_prefix + str(corpus)
-        search += r'.*'
-    if not week is None:
-        search += corpus_week_prefix + str(week)
-        search += r'.*'
-    if not day is None:
-        search += corpus_day_prefix + str(day)
-        search += r'.*'
+def _get_corpus_tracker_by_filter(variables, corpus = r'.*', week = r'.*', day = r'.*', group_id = None, teacher_id = None, source = None):
+    search = corpus_corpus_prefix   + str(corpus)
+    search += corpus_week_prefix    + str(week)
+    search += corpus_day_prefix     + str(day)
     if not group_id is None:
         search += corpus_group_prefix + str(group_id)
-        search += r'.*'
-    if not teacher_id is None:
+    elif not teacher_id is None:
         search += corpus_teacher_prefix + str(teacher_id)
-        search += r'.*'
+    else:
+        search += '_.*'
+   
+    search += r'$'
+
+    if 'None' in search:
+        raise Exception('None in search: '+search)
 
     return _get_indexes_by_name(variables, search, True, source)
 
@@ -339,7 +338,7 @@ class Solver:
         for week, day, timeslot in teacher_or_group.banned_time_slots:
             if week is None:
                 week = r'.*'
-                
+
             if day is None:
                 day = r'.*'
 
