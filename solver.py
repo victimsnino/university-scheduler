@@ -350,9 +350,11 @@ class Solver:
             elif day >= global_config.study_days:
                 continue
 
-            if timeslot >= global_config.time_slots_per_day_available:
+            if timeslot is None:
+                timeslot = r'.*'
+            elif timeslot >= global_config.time_slots_per_day_available:
                 continue
-            
+
             indexes = _get_indexes_of_timeslots_by_filter(self.model.variables, week=week, day=day, timeslot=timeslot, source=source)
             _add_constraint(self.model, indexes, '==', 0)
 

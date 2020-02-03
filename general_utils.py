@@ -4,8 +4,8 @@ from enum import Flag, Enum
 DEBUG_PRINT = False
 class SoftConstraints:
     def __init__(self):
-        self.max_lessons_per_day            = 1
-        self.max_lessons_per_day_penalty    = 100
+        self.max_lessons_per_day            = 3
+        self.max_lessons_per_day_penalty    = 1
 
 class Config:
     def __init__(self):
