@@ -83,6 +83,7 @@ class GroupOrTeacherBase:
             raise Exception("You should pass 1+ of parameters")
 
         self.banned_time_slots.add((week, day, timeslot))
+        return self
     
 class Group(GroupOrTeacherBase):
     def __init__(self, group_name, size, group_type):
@@ -154,6 +155,7 @@ class University:
                 raise Exception("WARNING: Group %s just exist! " % group_name)
         
         self.groups.append(Group(group_name, size, group_type))
+        return self.groups[-1]
 
     def add_lesson(self, lesson_name, group_names, count, lesson_type, teachers):
         '''
@@ -221,8 +223,8 @@ class University:
             self.study_weeks_and_days.append([0, day])
 
         if weeks > 2:
-            for day in range(global_config.study_days):
-                for week in range(1, weeks-1):
+            for week in range(1, weeks-1):
+                for day in range(global_config.study_days):
                     self.study_weeks_and_days.append([week, day])
 
         # fill last week. It can be not full

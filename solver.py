@@ -17,7 +17,7 @@ def _add_constraint(my_model, indexes_or_variables, sense, value, val = None):
 
     if val is None:
         val = [1.0]*len(indexes_or_variables)
-    
+
     my_model.linear_constraints.add(lin_expr = [cplex.SparsePair(ind = indexes_or_variables, 
                                                                  val = val)], 
                                     senses = senses[valid_operations.index(sense)],
@@ -37,6 +37,7 @@ def _get_indexes_by_name(variables, search, is_just_regex = False, source = None
     if not value is None:
         return value
 
+    debug(search)
     data_regex = re.compile(search)
 
     for name in source:
@@ -47,41 +48,25 @@ def _get_indexes_by_name(variables, search, is_just_regex = False, source = None
 
     return indexes
 
-def _get_indexes_of_timeslots_by_filter(variables, week = None, day = None, corpus = None, 
-                                        room = None, timeslot = None, lesson = None, group_id = None, 
-                                        type = None, teacher_id = None, source = None):
-    search = r'.*'
-    if not week is None:
-        search += week_prefix + str(week)
-        search += r'.*'
-    if not day is None:
-        search += day_prefix + str(day)
-        search += r'.*'
-    if not corpus is None:
-        search += corpus_prefix + str(corpus)
-        search += r'.*'
-    if not room is None:
-        search += room_prefix + str(room)
-        search += r'.*'
-    if not timeslot is None:
-        search += timeslot_prefix + str(timeslot)
-        search += r'.*'
-    if not lesson is None:
-        search += lesson_prefix + str(lesson.replace('[', r'\[').replace(']', r'\]'))
-        search += r'.*'
-    if not group_id is None:
-        search +=   group_prefix    + \
-                    r'\[.*,? ?'     + \
-                    str(group_id)   + \
-                    r',? ?.*\]'
-        search += r'.*'
-    if not teacher_id is None:
-        search +=   teacher_prefix  + str(teacher_id)
-        search += r'.*'
-    if not type is None:
-        search += type_prefix + str(type)
-        search += '.*'
+def _get_indexes_of_timeslots_by_filter(variables, week = r'.*', day = r'.*', corpus = r'.*', 
+                                        room = r'.*', timeslot = r'.*', lesson = r'.*', group_id = r'.*', 
+                                        type = r'.*', teacher_id = r'.*', source = None):
 
+    search = week_prefix        + str(week)
+    search += day_prefix        + str(day)
+    search += corpus_prefix     + str(corpus)
+    search += room_prefix       + str(room)
+    search += timeslot_prefix   + str(timeslot)
+    search += lesson_prefix     + str(lesson.replace('[', r'\[').replace(']', r'\]'))
+    search +=   group_prefix    + \
+                r'\[.*,? ?'     + \
+                str(group_id)   + \
+                r',? ?.*\]'
+    search += type_prefix       + str(type)
+    search += teacher_prefix    + str(teacher_id)
+
+    if 'None' in search:
+        raise Exception('None in search: '+search)
     return _get_indexes_by_name(variables, search, True, source)
                         
 def _get_corpus_tracker_by_filter(variables, corpus = None, week = None, day = None, group_id = None, teacher_id = None, source = None):
@@ -191,8 +176,8 @@ def _get_timeslot_for_groups_or_teachers(function):
 def _get_timeslot_for_lessons(function):
     @wraps(function)
     def _decorator(self, source=None, **kwargs):
-        for lesson in self.university.lessons:
-            temp = self.model.variables.get_names(_get_indexes_of_timeslots_by_filter(self.model.variables, lesson=lesson.full_name(), source=source))
+        for lesson_i, lesson in enumerate(self.university.lessons):
+            temp = self.model.variables.get_names(_get_indexes_of_timeslots_by_filter(self.model.variables, lesson=str(lesson_i), source=source))
             function(self, temp, lesson=lesson, **kwargs)
     return _decorator
 
@@ -228,7 +213,7 @@ class Solver:
                                                     lb=[0], 
                                                     ub=[1],
                                                     types=[self.model.variables.type.integer],
-                                                    names=[time_slot_format % (week_i, day_i, corpus_i, room.room_number, time_slot, lesson.lesson_name, 
+                                                    names=[time_slot_format % (week_i, day_i, corpus_i, room.room_number, time_slot, lesson.self_index, 
                                                                                 str(lesson.group_indexes), str(lesson.lesson_type), teacher_i)])[0])
                             
                         # each time-slot can have only 1 lesson
@@ -318,18 +303,18 @@ class Solver:
         For example, practice should be after lection. Therefore we should track it.
         '''
         # practice
-        for lesson in self.university.lessons:
+        for lesson_i, lesson in enumerate(self.university.lessons):
             if len(lesson.should_be_after) == 0:
                 continue
 
-            original_indexes = _get_indexes_of_timeslots_by_filter(self.model.variables, lesson=lesson.full_name())
+            original_indexes = _get_indexes_of_timeslots_by_filter(self.model.variables, lesson=str(lesson_i))
             original_indexes = sorted(original_indexes, key=lambda index: _calculate_cost_of_lesson_by_position(self.model.variables.get_names(index)))
             original_costs   = [_calculate_cost_of_lesson_by_position(self.model.variables.get_names(i)) for i in original_indexes]
 
             # lection
             for index_after in lesson.should_be_after:
                 should_be_after_this = self.university.lessons[index_after]
-                should_be_after_indexes = _get_indexes_of_timeslots_by_filter(self.model.variables, lesson=should_be_after_this.full_name())
+                should_be_after_indexes = _get_indexes_of_timeslots_by_filter(self.model.variables, lesson=str(should_be_after_this.self_index))
                 should_be_after_indexes = sorted(should_be_after_indexes, key=lambda index: _calculate_cost_of_lesson_by_position(self.model.variables.get_names(index)))
                 after_costs   = [_calculate_cost_of_lesson_by_position(self.model.variables.get_names(i)) for i in should_be_after_indexes]
                 set_after_costs = sorted(list(set(after_costs)))
@@ -343,7 +328,7 @@ class Solver:
                     original_till_index = 0
                     while original_till_index < len(original_costs):
                         if original_costs[original_till_index] > cost:
-                            break;
+                            break
                         original_till_index += 1
                     
                     _add_constraint(self.model, should_be_after_indexes[:after_till_index]+original_indexes[:original_till_index], '>=', 0,
@@ -352,6 +337,12 @@ class Solver:
     @_get_timeslot_for_groups_or_teachers
     def __local_constraint_teacher_or_group_has_banned_ts(self, source = None, teacher_or_group = None, **kwargs):
         for week, day, timeslot in teacher_or_group.banned_time_slots:
+            if week is None:
+                week = r'.*'
+                
+            if day is None:
+                day = r'.*'
+
             indexes = _get_indexes_of_timeslots_by_filter(self.model.variables, week=week, day=day, timeslot=timeslot, source=source)
             _add_constraint(self.model, indexes, '==', 0)
 
@@ -400,8 +391,23 @@ class Solver:
 
             _add_constraint(self.model, indexes, '<=', 1)
 
-    def solve(self):
+    @_get_timeslots_for_week_and_day
+    @_get_timeslot_for_groups_or_teachers
+    def __soft_constraint_max_lessons_per_day(self, source=None, **kwargs):
+        if  global_config.soft_constraints.max_lessons_per_day_penalty <= 0 or \
+            global_config.soft_constraints.max_lessons_per_day <= 0 or  \
+            global_config.soft_constraints.max_lessons_per_day >= global_config.time_slots_per_day_available:
+            return
 
+        for excess_lessons_per_day in range(global_config.soft_constraints.max_lessons_per_day, global_config.time_slots_per_day_available):
+            excess_var = [self.model.variables.add( obj=[excess_lessons_per_day*global_config.soft_constraints.max_lessons_per_day_penalty],
+                                                    lb=[0], 
+                                                    ub=[global_config.time_slots_per_day_available],
+                                                    types=[self.model.variables.type.integer])[0]]
+
+            _add_constraint(self.model, source+excess_var, '<=', excess_lessons_per_day, [1]*len(source)+[-1])
+        
+    def solve(self):
         for method in progressbar.progressbar([ self.__fill_lessons_to_time_slots,
                                                 self.__fill_dummy_variables_for_tracking_corpuses,
                                                 self.__fill_dummy_variables_for_tracking_teachers,
@@ -413,7 +419,8 @@ class Solver:
                                                 self.__local_constraint_lesson_after_another_lesson,
                                                 self.__local_constraint_teacher_or_group_has_banned_ts,
                                                 self.__constraint_ban_windows,
-                                                self.__constraint_one_teacher_per_lessons]):
+                                                self.__constraint_one_teacher_per_lessons,
+                                                self.__soft_constraint_max_lessons_per_day]):
             print()
             print(method.__name__)
             method()
@@ -481,7 +488,7 @@ class Solver:
 
         return by_group
     
-    def _get_groups_teachers_list(self):   
+    def _get_groups_teachers_list(self):
         ''' Returns tuple of (container, format for corpus tracking, column for filter) '''
         return [(self.university.groups, corpus_tracker_of_groups_format, 'group_id'), 
                 (self.university.teachers, corpus_tracker_of_teachers_format, 'teacher_id')]

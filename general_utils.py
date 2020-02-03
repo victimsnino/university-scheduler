@@ -2,6 +2,10 @@ from enum import Flag, Enum
 
 # Parameters
 DEBUG_PRINT = False
+class SoftConstraints:
+    def __init__(self):
+        self.max_lessons_per_day            = 1
+        self.max_lessons_per_day_penalty    = 100
 
 class Config:
     def __init__(self):
@@ -19,6 +23,7 @@ class Config:
         self.windows_penalty                = -1
         # windows for groups is more critical thing then for teachers.
         self.windows_groups_multiplier      = 2
+        self.soft_constraints               = SoftConstraints()
 
 global_config = Config()
 
@@ -38,7 +43,7 @@ time_slot_format =  week_prefix     +   "%d"    +\
                     corpus_prefix   +   "%d"    +\
                     room_prefix     +   "%d"    +\
                     timeslot_prefix +   "%d"    +\
-                    lesson_prefix   +   "%s"    +\
+                    lesson_prefix   +   "%d"    +\
                     group_prefix    +   "%s"    +\
                     type_prefix     +   "%s"    +\
                     teacher_prefix  +   "%d"

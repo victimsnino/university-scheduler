@@ -42,6 +42,9 @@ Done:
 * __constraint_one_teacher_per_lessons
     * Only one teacher conducts one lesson during all module
 
+* __soft_constraint_max_lessons_per_day
+    * Desired count of lessons per day
+
 * Split groups to bachelors and magistrecy for splitting by timeslots
 * It is possible to set day of week for start or end of module and count of weeks
 * Easy parser for output - parse_output_and_create_schedule
