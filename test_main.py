@@ -345,6 +345,32 @@ def test_one_teacher_per_lesson():
 
         assert len(teachers) == 1
 
+def test_lessons_in_similar_day_and_ts_during_module():
+    university = University(weeks=4)
+    university.add_room(1, 120, RoomType.LECTURE,   100)
+    university.add_group("16-pmi", 30, GroupType.BACHELOR)
+
+
+    university.add_teacher('Бычков И С')
+    university.add_teacher('Чистяков В В')
+    university.add_lesson("прога", ['16-pmi'], 20, RoomType.LECTURE,  ['Бычков И С'])
+    university.add_lesson("матан", ['16-pmi'], 8, RoomType.LECTURE,  ['Чистяков В В'])
+
+    solver = Solver(university)
+    res, output = solver.solve()
+    assert res
+
+    for group, weeks in sorted(output.items()):
+        ts_by_weeks_days_and_lessons = {}
+        for week, days in sorted(weeks.items()):
+            for day, tss in sorted(days.items()):
+                for ts, data in sorted(tss.items()):
+                    corpus, room, lesson, _type, teacher, other_groups = data
+                    ts_by_weeks_days_and_lessons.setdefault(week, {}).setdefault(day, {}).setdefault(lesson, []).append(ts)
+
+        for i in range(len(ts_by_weeks_days_and_lessons)-1):
+            assert ts_by_weeks_days_and_lessons[i] == ts_by_weeks_days_and_lessons[i+1]
+
 def test_full_module_for_two_groups():
     global_config.soft_constraints.max_lessons_per_day = 3
     weeks = 12
@@ -368,11 +394,12 @@ def test_full_module_for_two_groups():
     university.add_teacher('Слащинин')
     university.add_teacher('Зеленов')
 
-    university.add_lesson("СП", ['16-pmi'], 22, RoomType.LECTURE,  ['Колданов'])
-    university.add_lesson("НС", ['16-pmi'], 10, RoomType.COMPUTER,  ['Бабкина'])
-    university.add_lesson("АП", ['16-pmi'], 12, RoomType.PRACTICE,  ['Фролова'])
-    university.add_lesson("КЛ", ['16-pmi'], 22, RoomType.LECTURE,  ['Слащинин'])
-    university.add_lesson("ИВ", ['16-pmi'], 22, RoomType.COMPUTER,  ['Зеленов'])
+    lect = university.add_lesson("Случайные процессы", ['16-pmi'], 11, RoomType.LECTURE,  ['Колданов'])
+    university.add_lesson("Случайные процессы", ['16-pmi'], 11, RoomType.PRACTICE,  ['Колданов']).should_be_after_lessons(lect)
+    university.add_lesson("Научный семинар", ['16-pmi'], 10, RoomType.COMPUTER,  ['Бабкина'])
+    university.add_lesson("Академическое письмо", ['16-pmi'], 12, RoomType.PRACTICE,  ['Фролова'])
+    university.add_lesson("Компьютерная лингвистика", ['16-pmi'], 22, RoomType.LECTURE,  ['Слащинин'])
+    university.add_lesson("Интернет вещей", ['16-pmi'], 22, RoomType.COMPUTER,  ['Зеленов'])
     solver = Solver(university)
     res, output = solver.solve()
     assert res

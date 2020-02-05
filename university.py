@@ -213,6 +213,8 @@ class University:
 
     def __fill_study_days(self,start_from_day_of_week, end_by_day_of_week, weeks):
         self.study_weeks_and_days = []
+        self.study_days = set()
+
         self.study_weeks = weeks
 
         if end_by_day_of_week >= global_config.study_days:
@@ -221,13 +223,16 @@ class University:
         # fill first week. it can be not full
         for day in range(start_from_day_of_week, global_config.study_days if weeks > 1 else end_by_day_of_week+1):
             self.study_weeks_and_days.append([0, day])
+            self.study_days.add(day)
 
         if weeks > 2:
             for week in range(1, weeks-1):
                 for day in range(global_config.study_days):
                     self.study_weeks_and_days.append([week, day])
+                    self.study_days.add(day)
 
         # fill last week. It can be not full
         if weeks > 1:
             for day in range(0, end_by_day_of_week+1):
                 self.study_weeks_and_days.append([weeks-1, day])
+                self.study_days.add(day)

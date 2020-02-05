@@ -21,6 +21,8 @@ def _add_constraint(my_model, indexes_or_variables, sense, value, val = None):
     if val is None:
         val = [1.0]*len(indexes_or_variables)
 
+    debug(str(indexes_or_variables) + sense + str(value))
+
     my_model.linear_constraints.add(lin_expr = [cplex.SparsePair(ind = indexes_or_variables, 
                                                                  val = val)], 
                                     senses = senses[valid_operations.index(sense)],
@@ -115,7 +117,6 @@ def _calculate_cost_of_lesson_by_position(variable):
     return 1+ts+global_config.time_slots_per_day_available*(day+week*global_config.study_days)
 
 #decorators
-
 def _get_timeslots_for_corpuses(function):
     @wraps(function)
     def _decorator(self, source=None, **kwargs):
@@ -139,6 +140,15 @@ def _get_timeslots_for_week_only(function):
             temp = self.model.variables.get_names(_get_indexes_of_timeslots_by_filter(self.model.variables, week=week_i, source=source))
             function(self, temp, week_i=week_i, **kwargs)
     return _decorator
+
+def _get_timeslots_for_day_only(function):
+    @wraps(function)
+    def _decorator(self, source=None, **kwargs):
+        for day_i in self.university.study_days:
+            temp = self.model.variables.get_names(_get_indexes_of_timeslots_by_filter(self.model.variables, day=day_i, source=source))
+            function(self, temp, day_i=day_i, **kwargs)
+    return _decorator
+
 
 def _get_timeslots_for_timeslots(function):
     @wraps(function)
@@ -215,7 +225,7 @@ class Solver:
                                 indexes.append(self.model.variables.add(obj=[0],
                                                     lb=[0], 
                                                     ub=[1],
-                                                    types=[self.model.variables.type.integer],
+                                                    types=[self.model.variables.type.binary],
                                                     names=[time_slot_format % (week_i, day_i, corpus_i, room.room_number, time_slot, lesson.self_index, 
                                                                                 str(lesson.group_indexes), str(lesson.lesson_type), teacher_i)])[0])
                             
@@ -233,7 +243,7 @@ class Solver:
         corpus_tracker_index = [self.model.variables.add(obj=[0],
                                                         lb=[0], 
                                                         ub=[1],
-                                                        types=[self.model.variables.type.integer],
+                                                        types=[self.model.variables.type.binary],
                                                         names=[format_out % ( corpus_i, week_i, day_i, ith)])[0]]
 
         lections_indexes = source
@@ -253,7 +263,7 @@ class Solver:
             teacher_tracker_index = [self.model.variables.add(obj=[0],
                                                                 lb=[0], 
                                                                 ub=[1],
-                                                                types=[self.model.variables.type.integer],
+                                                                types=[self.model.variables.type.binary],
                                                                 names=[teachers_per_lesson_format % (lesson.full_name(), teacher_i)])[0]]
 
 
@@ -273,8 +283,8 @@ class Solver:
         '''
         _add_constraint(self.model, source, '==', lesson.count)
 
-    @_get_timeslots_for_week_and_day
     @_get_timeslots_for_timeslots
+    @_get_timeslots_for_week_and_day
     @_get_timeslot_for_groups_or_teachers
     def __constraint_group_or_teacher_only_in_one_room_per_timeslot(self, source=None, **kwargs):
         _add_constraint(self.model, source, '<=', 1)
@@ -325,7 +335,7 @@ class Solver:
                     after_till_index = 0
                     while after_till_index < len(after_costs):
                         if after_costs[after_till_index] > cost:
-                            break;
+                            break
                         after_till_index += 1
 
                     original_till_index = 0
@@ -390,7 +400,7 @@ class Solver:
                     temp_indexes.append(self.model.variables.add(   obj=[obj],
                                                                     lb=[0], 
                                                                     ub=[1],
-                                                                    types=[self.model.variables.type.integer])[0])
+                                                                    types=[self.model.variables.type.binary])[0])
                     val.append(-2)
 
                 _add_constraint(self.model, temp_indexes, '<=', 1, val)
@@ -418,8 +428,50 @@ class Solver:
                                                     types=[self.model.variables.type.integer])[0]]
 
             _add_constraint(self.model, source+excess_var, '<=', excess_lessons_per_day, [1]*len(source)+[-1])
+    
+    @_get_timeslot_for_lessons
+    @_get_timeslots_for_day_only
+    @_get_timeslots_for_timeslots
+    def __soft_constraint_lessons_balanced_during_module(self, source = None, **kwargs):
+        '''
+        It is very cool, when lessons on every week placed at similar day and timeslot
+        '''
+        if global_config.soft_constraints.lessons_in_similar_day_and_ts_penalty <= 0 or self.university.study_weeks <= 1 or len(source) == 0:
+            return
+
+        ts_by_weeks = {}
+        @_get_timeslots_for_week_only
+        def get_timeslots_for_week(self, source=None, week_i=None,  **kwargs):
+            ts_by_weeks.setdefault(week_i, []).extend(source)
         
+        get_timeslots_for_week(self, source)
+        for week_i in range(self.university.study_weeks-1):
+            for week_j in range(week_i+1, self.university.study_weeks):    
+                wi = ts_by_weeks[week_i]
+                wj = ts_by_weeks[week_j]
+
+                if len(wi) == 0 or len(wj) == 0:
+                    continue
+
+                # want to add check, that ts concrete day on week and week+1 equal. then           
+                # f = |x-a|    however we don't have absolute value
+                # then change |x-a| to p+q
+                # f = p+q
+                # s.t.
+                # x - a + p - q == 0
+
+                temp_variables = list(self.model.variables.add( obj=[global_config.soft_constraints.lessons_in_similar_day_and_ts_penalty]*2,
+                                                                lb=[0]*2, 
+                                                                ub=[1]*2,
+                                                                types=[self.model.variables.type.binary]*2))
+
+                indexes = wi + wj + temp_variables
+                _add_constraint(self.model, indexes, '==', 0, [1]*len(wi) + [-1]*len(wj) + [1,-1])
+
+
     def solve(self):
+        self.model.set_results_stream(None) # ignore standart useless output
+
         for method in progressbar.progressbar([ self.__fill_lessons_to_time_slots,
                                                 self.__fill_dummy_variables_for_tracking_corpuses,
                                                 self.__fill_dummy_variables_for_tracking_teachers,
@@ -432,21 +484,19 @@ class Solver:
                                                 self.__local_constraint_teacher_or_group_has_banned_ts,
                                                 self.__constraint_ban_windows,
                                                 self.__constraint_one_teacher_per_lessons,
-                                                self.__soft_constraint_max_lessons_per_day]):
+                                                self.__soft_constraint_max_lessons_per_day,
+                                                self.__soft_constraint_lessons_balanced_during_module,
+                                                self.model.solve]):
             print()
             print(method.__name__)
             method()
         
 
         debug(self.model.variables.get_names())
-
-        self.model.set_results_stream(None) # ignore standart useless output
-        self.model.solve()
         output = self.__parse_output_and_create_schedule()
         return not (self.model.solution.get_status() != 1 and self.model.solution.get_status() != 101), output
 
     def __parse_output_and_create_schedule(self):
-        # solution.get_status() returns an integer code
         print("Solution status = ",     self.model.solution.get_status(), ":", self.model.solution.status[self.model.solution.get_status()])
         if (self.model.solution.get_status() == 1 or self.model.solution.get_status() == 101):
             print("Value: ", self.model.solution.get_objective_value())
