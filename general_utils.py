@@ -4,9 +4,10 @@ from enum import Flag, Enum
 DEBUG_PRINT = False
 class SoftConstraints:
     def __init__(self):
-        self.max_lessons_per_day                    = 3
-        self.max_lessons_per_day_penalty            = 1
-        self.lessons_in_similar_day_and_ts_penalty  = 1
+        self.max_lessons_per_day                            = 3
+        self.max_lessons_per_day_penalty                    = 1
+        self.lessons_in_similar_day_and_ts_penalty          = 1
+        self.lessons_in_similar_day_and_ts_all_as_soft      = False    # It can allow you to create schedule in case of non-norm plan, but it multiple time for solving
         
 class Config:
     def __init__(self):

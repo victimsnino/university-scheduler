@@ -199,6 +199,8 @@ class Solver:
         self.model = cplex.Cplex()
         self.university = university
         self.model.objective.set_sense(self.model.objective.sense.minimize)
+        #self.model.parameters.mip.strategy.search.set(1)
+        self.model.parameters.simplex.limits.lowerobj.set(0)
         
         global timeslots_filter_cache
         timeslots_filter_cache.clear()
@@ -432,12 +434,31 @@ class Solver:
     @_get_timeslot_for_lessons
     @_get_timeslots_for_day_only
     @_get_timeslots_for_timeslots
-    def __soft_constraint_lessons_balanced_during_module(self, source = None, **kwargs):
+    def __soft_constraint_lessons_balanced_during_module(self, source = None, lesson=None, day_i = None, **kwargs):
         '''
         It is very cool, when lessons on every week placed at similar day and timeslot
         '''
-        if global_config.soft_constraints.lessons_in_similar_day_and_ts_penalty <= 0 or self.university.study_weeks <= 1 or len(source) == 0:
+        if len(source) == 0:
             return
+
+        if global_config.soft_constraints.lessons_in_similar_day_and_ts_penalty <= 0 or self.university.study_weeks <= 1:
+            return
+
+        banned_weeks_only = set()
+
+        groups_and_teachers = []
+        for group_i in lesson.group_indexes:
+            groups_and_teachers.append(self.university.groups[group_i])
+        for teacher_i in lesson.teacher_indexes:
+            groups_and_teachers.append(self.university.teachers[teacher_i])
+
+        for group_or_teacher in groups_and_teachers:
+            for week, day, ts in group_or_teacher.banned_time_slots:
+                if not week is None:
+                    if day is None or day == day_i:
+                        banned_weeks_only.add(week)
+                elif not day is None and day == day_i:
+                    return
 
         ts_by_weeks = {}
         @_get_timeslots_for_week_only
@@ -445,6 +466,7 @@ class Solver:
             ts_by_weeks.setdefault(week_i, []).extend(source)
         
         get_timeslots_for_week(self, source)
+
         for week_i in range(self.university.study_weeks-1):
             for week_j in range(week_i+1, self.university.study_weeks):    
                 wi = ts_by_weeks[week_i]
@@ -452,6 +474,7 @@ class Solver:
 
                 if len(wi) == 0 or len(wj) == 0:
                     continue
+                
 
                 # want to add check, that ts concrete day on week and week+1 equal. then           
                 # f = |x-a|    however we don't have absolute value
@@ -460,17 +483,28 @@ class Solver:
                 # s.t.
                 # x - a + p - q == 0
 
-                temp_variables = list(self.model.variables.add( obj=[global_config.soft_constraints.lessons_in_similar_day_and_ts_penalty]*2,
+                # is hard constraint or not
+                similar_type_of_week = (week_i % 2) == (week_j % 2) and not global_config.soft_constraints.lessons_in_similar_day_and_ts_all_as_soft
+
+                if week_i in banned_weeks_only or week_j in banned_weeks_only:
+                    similar_type_of_week = False
+
+                temp_variables = list(self.model.variables.add( obj=[global_config.soft_constraints.lessons_in_similar_day_and_ts_penalty*(1-similar_type_of_week)]*2,
                                                                 lb=[0]*2, 
                                                                 ub=[1]*2,
                                                                 types=[self.model.variables.type.binary]*2))
+                indexes = wi + wj
+                values = [1]*len(wi) + [-1]*len(wj)
 
-                indexes = wi + wj + temp_variables
-                _add_constraint(self.model, indexes, '==', 0, [1]*len(wi) + [-1]*len(wj) + [1,-1])
+                if not similar_type_of_week:
+                    indexes += temp_variables
+                    values += [1,-1]
+
+                _add_constraint(self.model, indexes, '==', 0, values)
 
 
     def solve(self):
-        self.model.set_results_stream(None) # ignore standart useless output
+        #self.model.set_results_stream(None) # ignore standart useless output
 
         for method in progressbar.progressbar([ self.__fill_lessons_to_time_slots,
                                                 self.__fill_dummy_variables_for_tracking_corpuses,

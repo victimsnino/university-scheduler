@@ -359,6 +359,8 @@ def test_lessons_in_similar_day_and_ts_during_module():
     solver = Solver(university)
     res, output = solver.solve()
     assert res
+    
+    open_as_html(output, university)
 
     for group, weeks in sorted(output.items()):
         ts_by_weeks_days_and_lessons = {}
@@ -370,6 +372,8 @@ def test_lessons_in_similar_day_and_ts_during_module():
 
         for i in range(len(ts_by_weeks_days_and_lessons)-1):
             assert ts_by_weeks_days_and_lessons[i] == ts_by_weeks_days_and_lessons[i+1]
+
+
 
 def test_full_module_for_two_groups():
     global_config.soft_constraints.max_lessons_per_day = 3
@@ -384,7 +388,7 @@ def test_full_module_for_two_groups():
     university.add_room(RADIK, 302, RoomType.COMPUTER,  30) 
     university.add_room(LVOV,  308, RoomType.PRACTICE,  25) 
 
-    university.add_group("16-pmi", 22, GroupType.BACHELOR).ban_time_slots(week=1).ban_time_slots(week=2).ban_time_slots(week=3).ban_time_slots(week=4)
+    university.add_group("16-pmi", 22, GroupType.BACHELOR).ban_time_slots(day=3, week=2)
     #university.add_group("16-pi", 30, GroupType.BACHELOR) 
 
 
@@ -404,9 +408,11 @@ def test_full_module_for_two_groups():
     res, output = solver.solve()
     assert res
 
+    open_as_html(output, university)
+
     for group, weeks in sorted(output.items()):
         for _, days in sorted(weeks.items()):
             for _, tss in sorted(days.items()):
                 assert len(tss) <= global_config.soft_constraints.max_lessons_per_day
 
-    open_as_html(output, university)
+
