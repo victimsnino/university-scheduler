@@ -3,7 +3,8 @@ from university import University, Lesson
 from general_utils import RoomType, debug, set_debug, Config, global_config, GroupType
 from solver import Solver
 import sys
-
+import cProfile
+from beautiful_out import open_as_html
 
 ''' 
 Done:
@@ -53,45 +54,44 @@ Done:
 * Easy parser for output - parse_output_and_create_schedule
 '''
 
-
-if __name__ == "__main__":
+def main():
     set_debug('--debug' in sys.argv)
 
-    university = University()
+    global_config.soft_constraints.max_lessons_per_day = 3
+    weeks = 12
+    university = University(start_from_day_of_week = 3, end_by_day_of_week=1,weeks=weeks)
+    
+    LVOV = 1
+    RADIK = 2
 
-    university.add_room(1, 120, RoomType.LECTURE,   100) 
-    university.add_room(1, 121, RoomType.PRACTICE,  30) 
+    university.add_room(RADIK, 207, RoomType.LECTURE | RoomType.PRACTICE, 40) 
+    university.add_room(RADIK, 301, RoomType.COMPUTER,  30) 
+    university.add_room(RADIK, 302, RoomType.COMPUTER,  30) 
+    university.add_room(LVOV,  308, RoomType.PRACTICE,  25) 
 
-    university.add_room(2, 203, RoomType.COMPUTER,  30) 
-    university.add_room(2, 205, RoomType.LECTURE,   50) 
-    university.add_room(2, 206, RoomType.COMPUTER,  30) 
+    university.add_group("16-pmi", 22, GroupType.BACHELOR)#.ban_time_slots(day=3, week=2)
+    #university.add_group("16-pi", 30, GroupType.BACHELOR) 
 
-    university.add_room(3, 305, RoomType.LECTURE,   60) 
 
-    university.add_group("16-pmi", 30, GroupType.BACHELOR)
-    university.add_group("17-pmi", 20, GroupType.BACHELOR)
-    university.add_group('16-pi', 25, GroupType.BACHELOR)
-    university.add_group('15-pi', 60, GroupType.BACHELOR)
-    university.add_group('14-pi', 20, GroupType.BACHELOR)
+    university.add_teacher('Колданов')
+    university.add_teacher('Бабкина')
+    university.add_teacher('Фролова')
+    university.add_teacher('Слащинин')
+    university.add_teacher('Зеленов')
 
-    university.add_teacher('Бычков И С')
-    university.add_teacher('Чистяков В В')
-    university.add_teacher('Фейковый Матанщик')
-    university.add_teacher('Фейковый Прогер')
-
-    university.add_lesson("матан", ['16-pmi', '17-pmi'], 2, RoomType.LECTURE, ['Чистяков В В', 'Фейковый Матанщик'])
-    university.add_lesson("матан", ['16-pmi'], 4, RoomType.PRACTICE, ['Чистяков В В', 'Фейковый Матанщик'])
-    university.add_lesson("матан", ['17-pmi'], 3, RoomType.PRACTICE, ['Чистяков В В', 'Фейковый Матанщик'])
-
-    pr_lection = university.add_lesson("прога", ['16-pi'], 5, RoomType.LECTURE,  ['Бычков И С'])
-    pr_practice = university.add_lesson("прога", ['16-pi'], 10, RoomType.COMPUTER, ['Бычков И С'])
-
-    pr_practice.should_be_after_lessons(pr_lection)
-
-    university.add_lesson("прога", ['14-pi'], 1, RoomType.COMPUTER, ['Бычков И С', 'Фейковый Прогер'])
-    university.add_lesson("прога", ['15-pi'], 5, RoomType.LECTURE, ['Бычков И С', 'Фейковый Прогер'])
-
-    debug(university)
-
+    lect = university.add_lesson("Случайные процессы", ['16-pmi'], 11, RoomType.LECTURE,  ['Колданов'])
+    university.add_lesson("Случайные процессы", ['16-pmi'], 11, RoomType.PRACTICE,  ['Колданов']).should_be_after_lessons(lect)
+    university.add_lesson("Научный семинар", ['16-pmi'], 10, RoomType.COMPUTER,  ['Бабкина'])
+    university.add_lesson("Академическое письмо", ['16-pmi'], 12, RoomType.PRACTICE,  ['Фролова'])
+    university.add_lesson("Компьютерная лингвистика", ['16-pmi'], 22, RoomType.LECTURE,  ['Слащинин'])
+    university.add_lesson("Интернет вещей", ['16-pmi'], 22, RoomType.COMPUTER,  ['Зеленов'])
+  #  university.add_lesson('Temp', ['16-pmi'], 6, RoomType.COMPUTER, ['Зеленов'])
+    
     solver = Solver(university)
-    solver.solve()
+    res, output = solver.solve()
+
+    # open_as_html(output, university)
+
+
+if __name__ == "__main__":
+    main()

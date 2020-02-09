@@ -30,7 +30,7 @@ def _add_constraint(my_model, indexes_or_variables, sense, value, val = None):
 
 def _get_indexes_by_name(variables, search, is_just_regex = False, source = None):
     if is_just_regex == False:
-        search = r'.*' + search.replace('[', r'\[').replace(']', r'\]') + r'.*'
+        search = search.replace('[', r'\[').replace(']', r'\]')
 
     indexes = []
     if source is None:
@@ -76,13 +76,13 @@ def _get_indexes_of_timeslots_by_filter(variables, week = r'.*', day = r'.*', co
     return _get_indexes_by_name(variables, search, True, source)
                         
 def _get_corpus_tracker_by_filter(variables, corpus = r'.*', week = r'.*', day = r'.*', group_id = None, teacher_id = None, source = None):
-    search = corpus_corpus_prefix   + str(corpus)
-    search += corpus_week_prefix    + str(week)
-    search += corpus_day_prefix     + str(day)
+    search = corpus_prefix   + str(corpus)
+    search += week_prefix    + str(week)
+    search += day_prefix     + str(day)
     if not group_id is None:
-        search += corpus_group_prefix + str(group_id)
+        search += group_prefix + str(group_id)
     elif not teacher_id is None:
-        search += corpus_teacher_prefix + str(teacher_id)
+        search += teacher_prefix + str(teacher_id)
     else:
         search += '_.*'
    
@@ -148,7 +148,6 @@ def _get_timeslots_for_day_only(function):
             temp = self.model.variables.get_names(_get_indexes_of_timeslots_by_filter(self.model.variables, day=day_i, source=source))
             function(self, temp, day_i=day_i, **kwargs)
     return _decorator
-
 
 def _get_timeslots_for_timeslots(function):
     @wraps(function)
@@ -431,9 +430,9 @@ class Solver:
 
             _add_constraint(self.model, source+excess_var, '<=', excess_lessons_per_day, [1]*len(source)+[-1])
     
+    @_get_timeslots_for_timeslots
     @_get_timeslot_for_lessons
     @_get_timeslots_for_day_only
-    @_get_timeslots_for_timeslots
     def __soft_constraint_lessons_balanced_during_module(self, source = None, lesson=None, day_i = None, **kwargs):
         '''
         It is very cool, when lessons on every week placed at similar day and timeslot
@@ -443,6 +442,9 @@ class Solver:
 
         if global_config.soft_constraints.lessons_in_similar_day_and_ts_penalty <= 0 or self.university.study_weeks <= 1:
             return
+
+        if lesson.count < self.university.study_weeks/2:
+            print("Lesson {0} can be potential reason for slowing of solving (count of lessons lower, than count of weeks/2.".format(lesson))
 
         banned_weeks_only = set()
 
@@ -467,6 +469,29 @@ class Solver:
         
         get_timeslots_for_week(self, source)
 
+        cached_is_just_have_different_type_of_week = False
+
+        def add_constraint_for_balanced(self, is_soft_constraint, similar_type_of_week, indexes, values):
+            if not is_soft_constraint and not similar_type_of_week:
+                if global_config.soft_constraints.lessons_in_similar_day_and_ts_level_of_solve == 2:
+                    is_soft_constraint = True
+                elif global_config.soft_constraints.lessons_in_similar_day_and_ts_level_of_solve == 1:
+                    if cached_is_just_have_different_type_of_week:
+                        return
+                    is_soft_constraint = True
+                        
+                        
+            if is_soft_constraint:
+                temp_variables = list(self.model.variables.add( obj=[global_config.soft_constraints.lessons_in_similar_day_and_ts_penalty*(1+similar_type_of_week)]*2,
+                                                                lb=[0]*2, 
+                                                                ub=[1]*2,
+                                                                types=[self.model.variables.type.binary]*2))
+
+                indexes += temp_variables
+                values += [1,-1]
+
+            _add_constraint(self.model, indexes, '==', 0, values)
+
         for week_i in range(self.university.study_weeks-1):
             for week_j in range(week_i+1, self.university.study_weeks):    
                 wi = ts_by_weeks[week_i]
@@ -475,7 +500,6 @@ class Solver:
                 if len(wi) == 0 or len(wj) == 0:
                     continue
                 
-
                 # want to add check, that ts concrete day on week and week+1 equal. then           
                 # f = |x-a|    however we don't have absolute value
                 # then change |x-a| to p+q
@@ -483,25 +507,21 @@ class Solver:
                 # s.t.
                 # x - a + p - q == 0
 
-                # is hard constraint or not
-                similar_type_of_week = (week_i % 2) == (week_j % 2) and not global_config.soft_constraints.lessons_in_similar_day_and_ts_all_as_soft
+                similar_type_of_week = (week_i % 2) == (week_j % 2) 
+                is_soft_constraint = False
+                is_have_banned = week_i in banned_weeks_only or week_j in banned_weeks_only
 
-                if week_i in banned_weeks_only or week_j in banned_weeks_only:
-                    similar_type_of_week = False
+                if global_config.soft_constraints.lessons_in_similar_day_and_ts_level_of_solve == 3:
+                    is_soft_constraint = True
+                elif is_have_banned:
+                    is_soft_constraint = True
+                elif lesson.count < self.university.study_weeks/2:
+                    is_soft_constraint = True
 
-                temp_variables = list(self.model.variables.add( obj=[global_config.soft_constraints.lessons_in_similar_day_and_ts_penalty*(1-similar_type_of_week)]*2,
-                                                                lb=[0]*2, 
-                                                                ub=[1]*2,
-                                                                types=[self.model.variables.type.binary]*2))
                 indexes = wi + wj
                 values = [1]*len(wi) + [-1]*len(wj)
 
-                if not similar_type_of_week:
-                    indexes += temp_variables
-                    values += [1,-1]
-
-                _add_constraint(self.model, indexes, '==', 0, values)
-
+                add_constraint_for_balanced(self, is_soft_constraint, similar_type_of_week, indexes, values)
 
     def solve(self):
         #self.model.set_results_stream(None) # ignore standart useless output
@@ -520,12 +540,12 @@ class Solver:
                                                 self.__constraint_one_teacher_per_lessons,
                                                 self.__soft_constraint_max_lessons_per_day,
                                                 self.__soft_constraint_lessons_balanced_during_module,
-                                                self.model.solve]):
+                                                self.model.solve
+                                                ]):
             print()
             print(method.__name__)
             method()
         
-
         debug(self.model.variables.get_names())
         output = self.__parse_output_and_create_schedule()
         return not (self.model.solution.get_status() != 1 and self.model.solution.get_status() != 101), output

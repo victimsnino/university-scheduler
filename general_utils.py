@@ -7,7 +7,8 @@ class SoftConstraints:
         self.max_lessons_per_day                            = 3
         self.max_lessons_per_day_penalty                    = 1
         self.lessons_in_similar_day_and_ts_penalty          = 1
-        self.lessons_in_similar_day_and_ts_all_as_soft      = False    # It can allow you to create schedule in case of non-norm plan, but it multiple time for solving
+        # 1 - fast but can be not optimal,  2 - partly optimal and partly fast, 3 - optimal
+        self.lessons_in_similar_day_and_ts_level_of_solve   = 1
         
 class Config:
     def __init__(self):
@@ -50,26 +51,20 @@ time_slot_format =  week_prefix     +   "%d"    +\
                     type_prefix     +   "%s"    +\
                     teacher_prefix  +   "%d"
 
-# should have uniq string, therefore doesnt equil with above
-corpus_corpus_prefix = '_in_corp_'
-corpus_week_prefix   = '_cweek_'
-corpus_day_prefix    = '_cday_'
-corpus_group_prefix = '_group_'
-corpus_teacher_prefix = '_teach_'
 
-corpus_tracker_of_groups_format =   corpus_corpus_prefix    +   "%d"    +\
-                                    corpus_week_prefix      +   "%d"    +\
-                                    corpus_day_prefix       +   "%d"    +\
-                                    corpus_group_prefix     +   "%d"
-corpus_tracker_of_teachers_format = corpus_corpus_prefix    +   "%d"    +\
-                                    corpus_week_prefix      +   "%d"    +\
-                                    corpus_day_prefix       +   "%d"    +\
-                                    corpus_teacher_prefix   +   "%d"
 
-teacher_per_lesson_teacher = '_teacherid_'
-teacher_per_lesson_lesson = '_forlesson_'
-teachers_per_lesson_format =    teacher_per_lesson_lesson   + "%s"  +\
-                                teacher_per_lesson_teacher  + "%d"
+corpus_tracker_of_groups_format =   corpus_prefix    +   "%d"    +\
+                                    week_prefix      +   "%d"    +\
+                                    day_prefix       +   "%d"    +\
+                                    group_prefix     +   "%d"
+corpus_tracker_of_teachers_format = corpus_prefix    +   "%d"    +\
+                                    week_prefix      +   "%d"    +\
+                                    day_prefix       +   "%d"    +\
+                                    teacher_prefix   +   "%d"
+
+teachers_per_lesson_format  =   lesson_prefix   + "%s"  +\
+                                teacher_prefix  + "%d"
+
 
 
 class RoomType(Flag):
