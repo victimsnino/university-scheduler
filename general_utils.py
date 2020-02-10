@@ -9,6 +9,7 @@ class SoftConstraints:
         self.lessons_in_similar_day_and_ts_penalty          = 1
         # 1 - fast but can be not optimal,  2 - partly optimal and partly fast, 3 - optimal
         self.lessons_in_similar_day_and_ts_level_of_solve   = 1
+        self.minimize_count_of_rooms_per_day_penalty        = 1
         
 class Config:
     def __init__(self):
@@ -57,10 +58,18 @@ corpus_tracker_of_groups_format =   corpus_prefix    +   "%d"    +\
                                     week_prefix      +   "%d"    +\
                                     day_prefix       +   "%d"    +\
                                     group_prefix     +   "%d"
+
 corpus_tracker_of_teachers_format = corpus_prefix    +   "%d"    +\
                                     week_prefix      +   "%d"    +\
                                     day_prefix       +   "%d"    +\
                                     teacher_prefix   +   "%d"
+
+room_tracker_of_groups_format  =    room_prefix      +   "%d"    +\
+                                    corpus_tracker_of_groups_format
+
+room_tracker_of_teachers_format  =  room_prefix      +   "%d"    +\
+                                    corpus_tracker_of_teachers_format
+
 
 teachers_per_lesson_format  =   lesson_prefix   + "%s"  +\
                                 teacher_prefix  + "%d"

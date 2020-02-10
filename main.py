@@ -49,6 +49,9 @@ Done:
 * __soft_constraint_lessons_balanced_during_module
     * It is very cool, when lessons placed in the same day and ts each week
 
+* __soft_constraint_minimize_rooms_per_day
+    * Minimize count of rooms during a day. In pair with above give a perfect result
+
 * Split groups to bachelors and magistrecy for splitting by timeslots
 * It is possible to set day of week for start or end of module and count of weeks
 * Easy parser for output - parse_output_and_create_schedule

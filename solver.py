@@ -46,7 +46,7 @@ def _get_indexes_by_name(variables, search, is_just_regex = False, source = None
     data_regex = re.compile(search)
 
     for name in source:
-        if not data_regex.search(name) is None:
+        if not data_regex.match(name) is None:
             indexes.append(variables.get_indices(name))
 
     cache['cached_var'] = indexes
@@ -75,8 +75,12 @@ def _get_indexes_of_timeslots_by_filter(variables, week = r'.*', day = r'.*', co
         raise Exception('None in search: '+search)
     return _get_indexes_by_name(variables, search, True, source)
                         
-def _get_corpus_tracker_by_filter(variables, corpus = r'.*', week = r'.*', day = r'.*', group_id = None, teacher_id = None, source = None):
-    search = corpus_prefix   + str(corpus)
+def _get_corpus__or_room_tracker_by_filter(variables, room = None, corpus = r'.*', week = r'.*', day = r'.*', group_id = None, teacher_id = None, source = None):
+    search = r'^'
+    if room:
+        search += room_prefix + str(room)
+
+    search += corpus_prefix   + str(corpus)
     search += week_prefix    + str(week)
     search += day_prefix     + str(day)
     if not group_id is None:
@@ -157,11 +161,20 @@ def _get_timeslots_for_timeslots(function):
             function(self, temp, timeslot=timeslot, **kwargs)
     return _decorator
 
+def _get_timeslots_for_rooms(function):
+    @wraps(function)
+    def _decorator(self, source=None, **kwargs):
+        for corpus_i in self.university.corpuses:
+            for room in self.university.corpuses[corpus_i]:
+                temp = self.model.variables.get_names(_get_indexes_of_timeslots_by_filter(self.model.variables, corpus=corpus_i, room=room.room_number, source=source))
+                function(self, temp, room_i = room.room_number, corpus_i=corpus_i, **kwargs)
+    return _decorator
+
 def _get_corpus_tracker_for_week_and_day(function):
     @wraps(function)
     def _decorator(self, source=None, **kwargs):
         for week_i, day_i in self.university.study_weeks_and_days:
-            temp = self.model.variables.get_names(_get_corpus_tracker_by_filter(self.model.variables, week=week_i, day=day_i, source=source))
+            temp = self.model.variables.get_names(_get_corpus__or_room_tracker_by_filter(self.model.variables, week=week_i, day=day_i, source=source))
             function(self, temp, week_i=week_i, day_i=day_i, **kwargs)
     return _decorator
 
@@ -170,7 +183,25 @@ def _get_corpus_tracker_for_groups_or_teachers(function):
     def _decorator(self, source=None, **kwargs):
         for container, _, column in self._get_groups_teachers_list():
             for ith, _ in enumerate(container):
-                indexes = eval('_get_corpus_tracker_by_filter(self.model.variables, source=source, %s=ith)' % column)
+                indexes = eval('_get_corpus__or_room_tracker_by_filter(self.model.variables, source=source, %s=ith)' % column)
+                temp = self.model.variables.get_names(indexes)
+                function(self, temp, ith=ith, **kwargs)
+    return _decorator
+
+def _get_room_tracker_for_week_and_day(function):
+    @wraps(function)
+    def _decorator(self, source=None, **kwargs):
+        for week_i, day_i in self.university.study_weeks_and_days:
+            temp = self.model.variables.get_names(_get_corpus__or_room_tracker_by_filter(self.model.variables, room=r'.*', week=week_i, day=day_i, source=source))
+            function(self, temp, week_i=week_i, day_i=day_i, **kwargs)
+    return _decorator
+
+def _get_room_tracker_for_groups_or_teachers(function):
+    @wraps(function)
+    def _decorator(self, source=None, **kwargs):
+        for container, _, column in self._get_groups_teachers_list():
+            for ith, _ in enumerate(container):
+                indexes = eval('_get_corpus__or_room_tracker_by_filter(self.model.variables, room=r".*", source=source, %s=ith)' % column)
                 temp = self.model.variables.get_names(indexes)
                 function(self, temp, ith=ith, **kwargs)
     return _decorator
@@ -254,6 +285,29 @@ class Solver:
 
         _add_constraint(self.model, lections_indexes + corpus_tracker_index, '>=', -1*(global_config.time_slots_per_day_available-1), 
                         [1]*len(lections_indexes)+[-1*global_config.time_slots_per_day_available])
+
+    
+    @_get_timeslots_for_rooms
+    @_get_timeslots_for_week_and_day
+    @_get_timeslot_for_groups_or_teachers
+    def __fill_dummy_variables_for_tracking_rooms(self, source = None, week_i = None, day_i = None, corpus_i = None, room_i = None, format_out = None, ith=None,  **kwargs):
+        ''' 
+        Add dummy variables for corpus tracking (Group or teacher has lection in i-th corpus)
+        '''
+        new_format = room_prefix + "%d" + format_out
+        room_tracker_index = [self.model.variables.add(obj=[0],
+                                                        lb=[0], 
+                                                        ub=[1],
+                                                        types=[self.model.variables.type.binary],
+                                                        names=[new_format % (room_i, corpus_i, week_i, day_i, ith)])[0]]
+
+        lections_indexes = source
+        _add_constraint(self.model, lections_indexes + room_tracker_index, '<=', 0, 
+                        [1]*len(lections_indexes)+[-1*global_config.time_slots_per_day_available])
+
+        _add_constraint(self.model, lections_indexes + room_tracker_index, '>=', -1*(global_config.time_slots_per_day_available-1), 
+                        [1]*len(lections_indexes)+[-1*global_config.time_slots_per_day_available])
+
 
     @_get_timeslot_for_lessons
     def __fill_dummy_variables_for_tracking_teachers(self, source = None, lesson=None, **kwargs):
@@ -433,6 +487,7 @@ class Solver:
     @_get_timeslots_for_timeslots
     @_get_timeslot_for_lessons
     @_get_timeslots_for_day_only
+    @_get_timeslots_for_rooms
     def __soft_constraint_lessons_balanced_during_module(self, source = None, lesson=None, day_i = None, **kwargs):
         '''
         It is very cool, when lessons on every week placed at similar day and timeslot
@@ -523,11 +578,28 @@ class Solver:
 
                 add_constraint_for_balanced(self, is_soft_constraint, similar_type_of_week, indexes, values)
 
+    
+    @_get_room_tracker_for_week_and_day
+    @_get_room_tracker_for_groups_or_teachers
+    def __soft_constraint_minimize_rooms_per_day(self, source = None, **kwargs):
+        if global_config.soft_constraints.minimize_count_of_rooms_per_day_penalty <= 0:
+            return
+
+        if len(source) == 0:
+            return
+
+        new_var = list(self.model.variables.add(obj=[global_config.soft_constraints.minimize_count_of_rooms_per_day_penalty],
+                                lb=[0], 
+                                types=[self.model.variables.type.integer]))
+
+        _add_constraint(self.model, source+new_var, '==', 0, [1]*len(source)+[-1])
+
     def solve(self):
         #self.model.set_results_stream(None) # ignore standart useless output
 
         for method in progressbar.progressbar([ self.__fill_lessons_to_time_slots,
                                                 self.__fill_dummy_variables_for_tracking_corpuses,
+                                                self.__fill_dummy_variables_for_tracking_rooms,
                                                 self.__fill_dummy_variables_for_tracking_teachers,
                                                 self.__constraint_total_count_of_lessons,
                                                 self.__constraint_group_or_teacher_only_in_one_room_per_timeslot,
@@ -540,6 +612,7 @@ class Solver:
                                                 self.__constraint_one_teacher_per_lessons,
                                                 self.__soft_constraint_max_lessons_per_day,
                                                 self.__soft_constraint_lessons_balanced_during_module,
+                                                self.__soft_constraint_minimize_rooms_per_day,
                                                 self.model.solve
                                                 ]):
             print()

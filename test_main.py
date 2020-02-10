@@ -373,6 +373,40 @@ def test_lessons_in_similar_day_and_ts_during_module():
         for i in range(len(ts_by_weeks_days_and_lessons)-1):
             assert ts_by_weeks_days_and_lessons[i] == ts_by_weeks_days_and_lessons[i+1]
 
+def test_similar_room_every_week():
+    university = University(weeks=4)
+    university.add_room(1, 120, RoomType.LECTURE,   100)
+    university.add_room(1, 123, RoomType.LECTURE,   100)
+    university.add_room(1, 122, RoomType.LECTURE,   100)
+    university.add_room(1, 136, RoomType.LECTURE,   100)
+    university.add_room(1, 326, RoomType.LECTURE,   100)
+    university.add_room(1, 426, RoomType.LECTURE,   100)
+    university.add_room(1, 226, RoomType.LECTURE,   100)
+    university.add_room(1, 222, RoomType.LECTURE,   100)
+    university.add_room(1, 236, RoomType.LECTURE,   100)
+    university.add_group("16-pmi", 30, GroupType.BACHELOR)
+
+
+    university.add_teacher('Бычков И С').ban_time_slots(day=2).ban_time_slots(day=3)
+    university.add_lesson("прога", ['16-pmi'], 36, RoomType.LECTURE,  ['Бычков И С'])
+
+    solver = Solver(university)
+    res, output = solver.solve()
+    assert res
+    
+    open_as_html(output, university)
+
+    for group, weeks in sorted(output.items()):
+        ts_by_days = {}
+        for week, days in sorted(weeks.items()):
+            for day, tss in sorted(days.items()):
+                for ts, data in sorted(tss.items()):
+                    corpus, room, lesson, _type, teacher, other_groups = data
+                    ts_by_days.setdefault(day, set()).add(room)
+        
+        for day in university.study_days:
+            assert len(ts_by_days.get(day, [])) <= 1
+
 def test_full_module_for_two_groups():
     global_config.soft_constraints.max_lessons_per_day = 3
     weeks = 12
@@ -381,10 +415,13 @@ def test_full_module_for_two_groups():
     LVOV = 1
     RADIK = 2
 
+    university.add_room(RADIK, 206, RoomType.LECTURE | RoomType.PRACTICE, 40) 
     university.add_room(RADIK, 207, RoomType.LECTURE | RoomType.PRACTICE, 40) 
     university.add_room(RADIK, 301, RoomType.COMPUTER,  30) 
     university.add_room(RADIK, 302, RoomType.COMPUTER,  30) 
+    university.add_room(RADIK, 303, RoomType.COMPUTER,  30)
     university.add_room(LVOV,  308, RoomType.PRACTICE,  25) 
+    university.add_room(LVOV,  309, RoomType.PRACTICE,  25) 
 
     university.add_group("16-pmi", 22, GroupType.BACHELOR)#.ban_time_slots(day=3, week=2)
     #university.add_group("16-pi", 30, GroupType.BACHELOR) 
@@ -414,31 +451,3 @@ def test_full_module_for_two_groups():
         for _, days in sorted(weeks.items()):
             for _, tss in sorted(days.items()):
                 assert len(tss) <= global_config.soft_constraints.max_lessons_per_day
-
-def test_similar_room_every_week():
-    university = University(weeks=4)
-    university.add_room(1, 120, RoomType.LECTURE,   100)
-    university.add_room(1, 123, RoomType.LECTURE,   100)
-    university.add_room(2, 126, RoomType.LECTURE,   100)
-    university.add_group("16-pmi", 30, GroupType.BACHELOR)
-
-
-    university.add_teacher('Бычков И С')
-    university.add_lesson("прога", ['16-pmi'], 20, RoomType.LECTURE,  ['Бычков И С'])
-
-    solver = Solver(university)
-    res, output = solver.solve()
-    assert res
-    
-    open_as_html(output, university)
-
-    for group, weeks in sorted(output.items()):
-        ts_by_days = {}
-        for week, days in sorted(weeks.items()):
-            for day, tss in sorted(days.items()):
-                for ts, data in sorted(tss.items()):
-                    corpus, room, lesson, _type, teacher, other_groups = data
-                    ts_by_days.setdefault(day, set()).add(room)
-        
-        for day in university.study_days:
-            assert len(ts_by_days[day]) <= 1
