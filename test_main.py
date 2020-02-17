@@ -416,11 +416,7 @@ def test_full_module_for_two_groups():
     RADIK = 2
 
     university.add_room(RADIK, 206, RoomType.LECTURE | RoomType.PRACTICE, 40) 
-    university.add_room(RADIK, 207, RoomType.LECTURE | RoomType.PRACTICE, 40) 
-    university.add_room(RADIK, 301, RoomType.COMPUTER,  30) 
-    university.add_room(RADIK, 302, RoomType.COMPUTER,  30) 
     university.add_room(RADIK, 303, RoomType.COMPUTER,  30)
-    university.add_room(LVOV,  308, RoomType.PRACTICE,  25) 
     university.add_room(LVOV,  309, RoomType.PRACTICE,  25) 
 
     university.add_group("16-pmi", 22, GroupType.BACHELOR)#.ban_time_slots(day=3, week=2)
@@ -451,3 +447,59 @@ def test_full_module_for_two_groups():
         for _, days in sorted(weeks.items()):
             for _, tss in sorted(days.items()):
                 assert len(tss) <= global_config.soft_constraints.max_lessons_per_day
+
+def test_full_module_for_second_course():
+    global_config.soft_constraints.minimize_count_of_rooms_per_day_penalty = 0
+    global_config.soft_constraints.max_lessons_per_day = 4
+    weeks = 2
+    university = University(weeks=2)
+
+    university.add_room(1, 147, RoomType.PRACTICE, 100)
+    university.add_room(1, 146, RoomType.PRACTICE, 100)
+    university.add_room(1, 224, RoomType.LECTURE | RoomType.PRACTICE, 100)
+    university.add_room(1, 202, RoomType.PRACTICE, 100)
+    university.add_room(1, 301, RoomType.PRACTICE, 100)
+    university.add_room(1, 306, RoomType.PRACTICE, 100)
+
+    university.add_room(2, 216, RoomType.PRACTICE, 100)
+    university.add_room(2, 402, RoomType.LECTURE, 100)
+    
+
+    university.add_group('17bi-1', 15, GroupType.BACHELOR)
+    university.add_group('17bi-2', 15, GroupType.BACHELOR)
+
+    university.add_teacher('Демкин')
+    university.add_teacher('Семенов')
+    university.add_teacher('Куранова')
+    university.add_teacher('Колданов')
+
+    university.add_lesson('Алгоритмы и структуры данных', ['17bi-1'], weeks, RoomType.PRACTICE, ['Демкин'])
+    university.add_lesson('Алгоритмы и структуры данных', ['17bi-2'], weeks, RoomType.PRACTICE, ['Демкин'])
+    university.add_lesson('Алгоритмы и структуры данных', ['17bi-1', '17bi-2'], weeks, RoomType.LECTURE, ['Демкин'])
+
+    university.add_lesson('Объективно -ориентированное программирование', ['17bi-1'], weeks, RoomType.PRACTICE, ['Демкин'])
+    university.add_lesson('Объективно -ориентированное программирование', ['17bi-2'], weeks, RoomType.PRACTICE, ['Демкин'])
+    university.add_lesson('Объективно -ориентированное программирование', ['17bi-1', '17bi-2'], weeks, RoomType.LECTURE, ['Демкин'])
+
+    university.add_lesson('Теория вероятностей', ['17bi-1'], weeks, RoomType.PRACTICE, ['Семенов'])
+    university.add_lesson('Теория вероятностей', ['17bi-2'], weeks, RoomType.PRACTICE, ['Семенов'])
+
+    university.add_lesson('Моделирование процессов и систем', ['17bi-1'], weeks*2, RoomType.PRACTICE, ['Куранова'])
+    university.add_lesson('Моделирование процессов и систем', ['17bi-2'], weeks*2, RoomType.PRACTICE, ['Куранова'])
+    university.add_lesson('Моделирование процессов и систем', ['17bi-1', '17bi-2'], weeks, RoomType.LECTURE, ['Куранова'])
+    university.add_lesson('Теория вероятности', ['17bi-1', '17bi-2'], weeks, RoomType.LECTURE, ['Колданов'])
+
+    university.add_lesson('Анализ данных', ['17bi-1', '17bi-2'], weeks, RoomType.LECTURE, ['Колданов'])
+
+    university.add_lesson('Английский язык', ['17bi-1', '17bi-2'], weeks, RoomType.LECTURE, ['Колданов'])
+
+    solver = Solver(university)
+    res, output = solver.solve()
+    assert res
+    open_as_html(output, university)
+
+    for group, weeks in sorted(output.items()):
+        ts_by_days = {}
+        for week, days in sorted(weeks.items()):
+            for day, tss in sorted(days.items()):
+                assert len(tss) == 0 or len(tss) >= 2

@@ -483,6 +483,35 @@ class Solver:
                                                     types=[self.model.variables.type.integer])[0]]
 
             _add_constraint(self.model, source+excess_var, '<=', excess_lessons_per_day, [1]*len(source)+[-1])
+
+    @_get_timeslots_for_week_and_day
+    @_get_timeslot_for_groups_or_teachers
+    def __soft_constraint_min_lessons_per_day(self, source=None, **kwargs):
+        if  global_config.soft_constraints.min_lessons_per_day_penalty <= 0 or \
+            global_config.soft_constraints.min_lessons_per_day <= 0 or  \
+            global_config.soft_constraints.min_lessons_per_day >= global_config.time_slots_per_day_available:
+            return
+        min_lessons = global_config.soft_constraints.min_lessons_per_day
+
+        vars = []
+        indicies = []
+        penalties = []
+        for lessons in range(0, global_config.time_slots_per_day_available+1):
+            penalty = 0
+            index = min_lessons-lessons
+
+            if lessons > 0 and lessons < min_lessons:
+                penalty = global_config.soft_constraints.min_lessons_per_day_penalty*(index)
+                
+            vars.append(self.model.variables.add( obj=[penalty],
+                                                    lb=[0], 
+                                                    ub=[1],
+                                                    types=[self.model.variables.type.binary])[0])
+            indicies.append(index)
+            penalties.append(penalty)
+
+        _add_constraint(self.model, source + vars, '==', min_lessons, [1]*len(source)+indicies)
+        _add_constraint(self.model, vars, '==', 1)
     
     @_get_timeslots_for_timeslots
     @_get_timeslot_for_lessons
@@ -592,7 +621,7 @@ class Solver:
                                 lb=[0], 
                                 types=[self.model.variables.type.integer]))
 
-        _add_constraint(self.model, source+new_var, '==', 0, [1]*len(source)+[-1])
+        _add_constraint(self.model, source+new_var, '<=', 1, [1]*len(source)+[-1])
 
     def solve(self):
         #self.model.set_results_stream(None) # ignore standart useless output
@@ -611,6 +640,7 @@ class Solver:
                                                 self.__constraint_ban_windows,
                                                 self.__constraint_one_teacher_per_lessons,
                                                 self.__soft_constraint_max_lessons_per_day,
+                                                self.__soft_constraint_min_lessons_per_day,
                                                 self.__soft_constraint_lessons_balanced_during_module,
                                                 self.__soft_constraint_minimize_rooms_per_day,
                                                 self.model.solve

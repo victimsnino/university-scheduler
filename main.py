@@ -44,7 +44,10 @@ Done:
     * Only one teacher conducts one lesson during all module
 
 * __soft_constraint_max_lessons_per_day
-    * Desired count of lessons per day
+    * Desired maximal count of lessons per day (for avoiding looooong days)
+
+*__soft_constraint_min_lessons_per_day
+    * Desired minamal count of lessons per day (for avoiding 1 lessons per day)
 
 * __soft_constraint_lessons_balanced_during_module
     * It is very cool, when lessons placed in the same day and ts each week
