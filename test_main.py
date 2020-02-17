@@ -450,7 +450,7 @@ def test_full_module_for_two_groups():
 
 def test_full_module_for_second_course():
     global_config.soft_constraints.minimize_count_of_rooms_per_day_penalty = 0
-    global_config.soft_constraints.max_lessons_per_day = 4
+    
     weeks = 2
     university = University(weeks=2)
 
