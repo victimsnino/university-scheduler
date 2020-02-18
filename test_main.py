@@ -449,7 +449,7 @@ def test_full_module_for_two_groups():
                 assert len(tss) <= global_config.soft_constraints.max_lessons_per_day
 
 def test_full_module_for_second_course():
-    global_config.soft_constraints.minimize_count_of_rooms_per_day_penalty = 0
+    #global_config.soft_constraints.minimize_count_of_rooms_per_day_penalty = 0
     
     weeks = 2
     university = University(weeks=2)
@@ -503,3 +503,18 @@ def test_full_module_for_second_course():
         for week, days in sorted(weeks.items()):
             for day, tss in sorted(days.items()):
                 assert len(tss) == 0 or len(tss) >= 2
+
+def test_lessons_grouped_by_lesson_id():
+    university = University(weeks=4)
+    university.add_room(1, 1, RoomType.LECTURE, 10)
+    university.add_group('Group', 1, GroupType.BACHELOR)
+    university.add_teacher('Teacher')
+    university.add_lesson('Lesson1', ['Group'], 10, RoomType.LECTURE, ['Teacher'])
+    university.add_lesson('Lesson2', ['Group'], 10, RoomType.LECTURE, ['Teacher'])
+    university.add_lesson('Lesson3', ['Group'], 10, RoomType.LECTURE, ['Teacher'])
+
+    solver = Solver(university)
+    res, out = solver.solve()
+    open_as_html(out, university)
+
+

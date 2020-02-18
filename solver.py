@@ -30,7 +30,7 @@ def _add_constraint(my_model, indexes_or_variables, sense, value, val = None):
 
 def _get_indexes_by_name(variables, search, is_just_regex = False, source = None):
     if is_just_regex == False:
-        search = search.replace('[', r'\[').replace(']', r'\]')
+        search = r'^' + search.replace('[', r'\[').replace(']', r'\]') + r'$'
 
     indexes = []
     if source is None:
@@ -57,7 +57,8 @@ def _get_indexes_of_timeslots_by_filter(variables, week = r'.*', day = r'.*', co
                                         room = r'.*', timeslot = r'.*', lesson = r'.*', group_id = r'.*', 
                                         type = r'.*', teacher_id = r'.*', source = None):
 
-    search = week_prefix        + str(week)
+    search = r'^'
+    search += week_prefix        + str(week)
     search += day_prefix        + str(day)
     search += corpus_prefix     + str(corpus)
     search += room_prefix       + str(room)
@@ -97,6 +98,25 @@ def _get_corpus__or_room_tracker_by_filter(variables, room = None, corpus = r'.*
 
     return _get_indexes_by_name(variables, search, True, source)
 
+def _get_lesson_tracker_by_filter(variables, week = r'.*', day = r'.*', lesson_id = r'.*', group_id = None, teacher_id = None, source = None):
+    search = r'^'
+    search += week_prefix    + str(week)
+    search += day_prefix     + str(day)
+    search += lesson_prefix  + str(lesson_id)
+    if not group_id is None:
+        search += group_prefix + str(group_id)
+    elif not teacher_id is None:
+        search += teacher_prefix + str(teacher_id)
+    else:
+        search += '_.*'
+   
+    search += r'$'
+
+    if 'None' in search:
+        raise Exception('None in search: '+search)
+
+    return _get_indexes_by_name(variables, search, True, source)
+
 def _get_variables_from_general_variable(variable):
     template = time_slot_format.replace("%d", r"(\d+)").replace("%s", "(.*)")
     finded = re.findall(template, variable)
@@ -120,13 +140,13 @@ def _calculate_cost_of_lesson_by_position(variable):
     week, day, _, _, ts, _,  _,  _, _  = variables
     return 1+ts+global_config.time_slots_per_day_available*(day+week*global_config.study_days)
 
-#decorators
+##################### decorators ########################
 def _get_timeslots_for_corpuses(function):
     @wraps(function)
     def _decorator(self, source=None, **kwargs):
         for corpus_i in self.university.corpuses:
             temp = self.model.variables.get_names(_get_indexes_of_timeslots_by_filter(self.model.variables, corpus=corpus_i, source=source))
-            function(self, temp, corpus_i=corpus_i, **kwargs)
+            function(self, source=temp, corpus_i=corpus_i, **kwargs)
     return _decorator
 
 def _get_timeslots_for_week_and_day(function):
@@ -134,7 +154,7 @@ def _get_timeslots_for_week_and_day(function):
     def _decorator(self, source=None, **kwargs):
         for week_i, day_i in self.university.study_weeks_and_days:
             temp = self.model.variables.get_names(_get_indexes_of_timeslots_by_filter(self.model.variables, week=week_i, day=day_i, source=source))
-            function(self, temp, week_i=week_i, day_i=day_i, **kwargs)
+            function(self, source=temp, week_i=week_i, day_i=day_i, **kwargs)
     return _decorator
 
 def _get_timeslots_for_week_only(function):
@@ -142,7 +162,7 @@ def _get_timeslots_for_week_only(function):
     def _decorator(self, source=None, **kwargs):
         for week_i in range(self.university.study_weeks):
             temp = self.model.variables.get_names(_get_indexes_of_timeslots_by_filter(self.model.variables, week=week_i, source=source))
-            function(self, temp, week_i=week_i, **kwargs)
+            function(self, source=temp, week_i=week_i, **kwargs)
     return _decorator
 
 def _get_timeslots_for_day_only(function):
@@ -150,7 +170,7 @@ def _get_timeslots_for_day_only(function):
     def _decorator(self, source=None, **kwargs):
         for day_i in self.university.study_days:
             temp = self.model.variables.get_names(_get_indexes_of_timeslots_by_filter(self.model.variables, day=day_i, source=source))
-            function(self, temp, day_i=day_i, **kwargs)
+            function(self, source=temp, day_i=day_i, **kwargs)
     return _decorator
 
 def _get_timeslots_for_timeslots(function):
@@ -158,7 +178,7 @@ def _get_timeslots_for_timeslots(function):
     def _decorator(self, source=None, **kwargs):
         for timeslot in range(global_config.time_slots_per_day_available):
             temp = self.model.variables.get_names(_get_indexes_of_timeslots_by_filter(self.model.variables, timeslot=timeslot, source=source))
-            function(self, temp, timeslot=timeslot, **kwargs)
+            function(self, source=temp, timeslot=timeslot, **kwargs)
     return _decorator
 
 def _get_timeslots_for_rooms(function):
@@ -167,43 +187,7 @@ def _get_timeslots_for_rooms(function):
         for corpus_i in self.university.corpuses:
             for room in self.university.corpuses[corpus_i]:
                 temp = self.model.variables.get_names(_get_indexes_of_timeslots_by_filter(self.model.variables, corpus=corpus_i, room=room.room_number, source=source))
-                function(self, temp, room_i = room.room_number, corpus_i=corpus_i, **kwargs)
-    return _decorator
-
-def _get_corpus_tracker_for_week_and_day(function):
-    @wraps(function)
-    def _decorator(self, source=None, **kwargs):
-        for week_i, day_i in self.university.study_weeks_and_days:
-            temp = self.model.variables.get_names(_get_corpus__or_room_tracker_by_filter(self.model.variables, week=week_i, day=day_i, source=source))
-            function(self, temp, week_i=week_i, day_i=day_i, **kwargs)
-    return _decorator
-
-def _get_corpus_tracker_for_groups_or_teachers(function):
-    @wraps(function)
-    def _decorator(self, source=None, **kwargs):
-        for container, _, column in self._get_groups_teachers_list():
-            for ith, _ in enumerate(container):
-                indexes = eval('_get_corpus__or_room_tracker_by_filter(self.model.variables, source=source, %s=ith)' % column)
-                temp = self.model.variables.get_names(indexes)
-                function(self, temp, ith=ith, **kwargs)
-    return _decorator
-
-def _get_room_tracker_for_week_and_day(function):
-    @wraps(function)
-    def _decorator(self, source=None, **kwargs):
-        for week_i, day_i in self.university.study_weeks_and_days:
-            temp = self.model.variables.get_names(_get_corpus__or_room_tracker_by_filter(self.model.variables, room=r'.*', week=week_i, day=day_i, source=source))
-            function(self, temp, week_i=week_i, day_i=day_i, **kwargs)
-    return _decorator
-
-def _get_room_tracker_for_groups_or_teachers(function):
-    @wraps(function)
-    def _decorator(self, source=None, **kwargs):
-        for container, _, column in self._get_groups_teachers_list():
-            for ith, _ in enumerate(container):
-                indexes = eval('_get_corpus__or_room_tracker_by_filter(self.model.variables, room=r".*", source=source, %s=ith)' % column)
-                temp = self.model.variables.get_names(indexes)
-                function(self, temp, ith=ith, **kwargs)
+                function(self, source=temp, room_i = room.room_number, corpus_i=corpus_i, **kwargs)
     return _decorator
 
 def _get_timeslot_for_groups_or_teachers(function):
@@ -213,7 +197,7 @@ def _get_timeslot_for_groups_or_teachers(function):
             for ith, teacher_or_group in enumerate(container):
                 indexes = eval('_get_indexes_of_timeslots_by_filter(self.model.variables, source=source, %s=ith)' % column)
                 temp = self.model.variables.get_names(indexes)
-                function(self, temp, ith=ith, format_out=format_out, teacher_or_group=teacher_or_group, column=column, **kwargs)
+                function(self, source=temp, ith=ith, format_out=format_out, teacher_or_group=teacher_or_group, column=column, **kwargs)
     return _decorator
 
 def _get_timeslot_for_lessons(function):
@@ -221,8 +205,51 @@ def _get_timeslot_for_lessons(function):
     def _decorator(self, source=None, **kwargs):
         for lesson_i, lesson in enumerate(self.university.lessons):
             temp = self.model.variables.get_names(_get_indexes_of_timeslots_by_filter(self.model.variables, lesson=str(lesson_i), source=source))
-            function(self, temp, lesson=lesson, **kwargs)
+            function(self, source=temp, lesson=lesson, **kwargs)
     return _decorator
+
+##########################################
+
+def _get_corpus_tracker_for_week_and_day(function):
+    @wraps(function)
+    def _decorator(self, corpus_tracker_source=None, **kwargs):
+        for week_i, day_i in self.university.study_weeks_and_days:
+            temp = self.model.variables.get_names(_get_corpus__or_room_tracker_by_filter(self.model.variables, week=week_i, day=day_i, source=corpus_tracker_source))
+            function(self, corpus_tracker_source=temp, week_i=week_i, day_i=day_i, **kwargs)
+    return _decorator
+
+def _get_corpus_tracker_for_groups_or_teachers(function):
+    @wraps(function)
+    def _decorator(self, corpus_tracker_source=None, **kwargs):
+        for container, _, column in self._get_groups_teachers_list():
+            for ith, _ in enumerate(container):
+                indexes = eval('_get_corpus__or_room_tracker_by_filter(self.model.variables, source=corpus_tracker_source, %s=ith)' % column)
+                temp = self.model.variables.get_names(indexes)
+                function(self, corpus_tracker_source=temp, ith=ith, column=column, **kwargs)
+    return _decorator
+
+##########################################
+
+def _get_room_tracker_for_week_and_day(function):
+    @wraps(function)
+    def _decorator(self, room_tracker_source=None, **kwargs):
+        for week_i, day_i in self.university.study_weeks_and_days:
+            temp = self.model.variables.get_names(_get_corpus__or_room_tracker_by_filter(self.model.variables, room=r'.*', week=week_i, day=day_i, source=room_tracker_source))
+            function(self, room_tracker_source=temp, week_i=week_i, day_i=day_i, **kwargs)
+    return _decorator
+
+def _get_room_tracker_for_groups_or_teachers(function):
+    @wraps(function)
+    def _decorator(self, room_tracker_source=None, **kwargs):
+        for container, _, column in self._get_groups_teachers_list():
+            for ith, _ in enumerate(container):
+                indexes = eval('_get_corpus__or_room_tracker_by_filter(self.model.variables, room=r".*", source=room_tracker_source, %s=ith)' % column)
+                temp = self.model.variables.get_names(indexes)
+                function(self, room_tracker_source=temp, ith=ith, column=column, **kwargs)
+    return _decorator
+
+###################
+
 
 class Solver:
     def __init__(self, university):
@@ -308,6 +335,28 @@ class Solver:
         _add_constraint(self.model, lections_indexes + room_tracker_index, '>=', -1*(global_config.time_slots_per_day_available-1), 
                         [1]*len(lections_indexes)+[-1*global_config.time_slots_per_day_available])
 
+    
+    @_get_timeslot_for_lessons
+    @_get_timeslots_for_week_and_day
+    @_get_timeslot_for_groups_or_teachers
+    def __fill_dummy_variables_for_tracking_lessons(self, source = None, week_i = None, day_i = None, lesson = None, column = None, ith=None,  **kwargs):
+        ''' 
+        Add dummy variables for corpus tracking (Group or teacher has lection in i-th corpus)
+        '''
+        new_format = lesson_id_per_day_base_tracker_format + (group_prefix if column == 'group_id' else teacher_prefix) + '%d'
+        lesson_tracker_index = [self.model.variables.add(obj=[0],
+                                                        lb=[0], 
+                                                        ub=[1],
+                                                        types=[self.model.variables.type.binary],
+                                                        names=[new_format % (week_i, day_i, lesson.self_index, ith)])[0]]
+
+        lections_indexes = source
+        _add_constraint(self.model, lections_indexes + lesson_tracker_index, '<=', 0, 
+                        [1]*len(lections_indexes)+[-1*global_config.time_slots_per_day_available])
+
+        _add_constraint(self.model, lections_indexes + lesson_tracker_index, '>=', -1*(global_config.time_slots_per_day_available-1), 
+                        [1]*len(lections_indexes)+[-1*global_config.time_slots_per_day_available])
+
 
     @_get_timeslot_for_lessons
     def __fill_dummy_variables_for_tracking_teachers(self, source = None, lesson=None, **kwargs):
@@ -346,8 +395,8 @@ class Solver:
 
     @_get_corpus_tracker_for_week_and_day
     @_get_corpus_tracker_for_groups_or_teachers
-    def __constraint_ban_changing_corpus_for_groups_or_teachers_during_day(self, source=None, **kwargs):
-        _add_constraint(self.model, source, '<=', 1)
+    def __constraint_ban_changing_corpus_for_groups_or_teachers_during_day(self, corpus_tracker_source=None, **kwargs):
+        _add_constraint(self.model, corpus_tracker_source, '<=', 1)
 
     @_get_timeslots_for_week_and_day
     @_get_timeslot_for_groups_or_teachers
@@ -610,18 +659,20 @@ class Solver:
     
     @_get_room_tracker_for_week_and_day
     @_get_room_tracker_for_groups_or_teachers
-    def __soft_constraint_minimize_rooms_per_day(self, source = None, **kwargs):
+    def __soft_constraint_count_of_lessons_more_than_count_of_rooms(self, room_tracker_source = None, column = None, week_i = None, day_i = None, ith=None, **kwargs):
         if global_config.soft_constraints.minimize_count_of_rooms_per_day_penalty <= 0:
             return
 
-        if len(source) == 0:
-            return
+        if len(room_tracker_source) == 0:
+            return  
+
+        lesson_tracker_source= eval('_get_lesson_tracker_by_filter(self.model.variables, week_i,day_i, %s=ith)' % column)
 
         new_var = list(self.model.variables.add(obj=[global_config.soft_constraints.minimize_count_of_rooms_per_day_penalty],
                                 lb=[0], 
                                 types=[self.model.variables.type.integer]))
 
-        _add_constraint(self.model, source+new_var, '<=', 1, [1]*len(source)+[-1])
+        _add_constraint(self.model, lesson_tracker_source+room_tracker_source+new_var, '>=', 0, [1]*len(lesson_tracker_source)+[-1]*len(room_tracker_source)+[1])
 
     def solve(self):
         #self.model.set_results_stream(None) # ignore standart useless output
@@ -630,6 +681,7 @@ class Solver:
                                                 self.__fill_dummy_variables_for_tracking_corpuses,
                                                 self.__fill_dummy_variables_for_tracking_rooms,
                                                 self.__fill_dummy_variables_for_tracking_teachers,
+                                                self.__fill_dummy_variables_for_tracking_lessons,
                                                 self.__constraint_total_count_of_lessons,
                                                 self.__constraint_group_or_teacher_only_in_one_room_per_timeslot,
                                                 self.__constraint_ban_changing_corpus_for_groups_or_teachers_during_day,
@@ -642,7 +694,7 @@ class Solver:
                                                 self.__soft_constraint_max_lessons_per_day,
                                                 self.__soft_constraint_min_lessons_per_day,
                                                 self.__soft_constraint_lessons_balanced_during_module,
-                                                self.__soft_constraint_minimize_rooms_per_day,
+                                                self.__soft_constraint_count_of_lessons_more_than_count_of_rooms,
                                                 self.model.solve
                                                 ]):
             print()
