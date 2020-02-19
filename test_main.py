@@ -533,6 +533,31 @@ def test_no_lessons_in_saturday():
         for week, days in sorted(weeks.items()):
             assert not global_config.study_days-1 in days
 
+def test_no_lessons_first_timeslot():
+    global_config.soft_constraints.lessons_in_similar_day_and_ts_level_of_solve = 3
+    global_config.soft_constraints.last_day_in_week_penalty = 0
+    university = University(weeks=4)
+    university.add_room(1, 1, RoomType.LECTURE, 10)
+    university.add_group('Group', 1, GroupType.BACHELOR)
+    university.add_teacher('Teacher').ban_time_slots(day=2).ban_time_slots(day=3).ban_time_slots(day=1).ban_time_slots(timeslot=2)
+    university.add_lesson('Lesson1', ['Group'], 9, RoomType.LECTURE, ['Teacher'])
+    university.add_lesson('Lesson2', ['Group'], 9, RoomType.LECTURE, ['Teacher'])
+    university.add_lesson('Lesson3', ['Group'], 9, RoomType.LECTURE, ['Teacher'])
+
+    solver = Solver(university)
+    res, out = solver.solve()
+    assert res
+    open_as_html(out, university)
+    
+    count_of_last_timeslots = 0
+    for group, weeks in sorted(out.items()):
+        for week, days in sorted(weeks.items()):
+            for day, tss in sorted(days.items()):
+                for ts, data in sorted(tss.items()):
+                    assert ts > 0
+                    if ts == global_config.bachelor_time_slots_per_day-1:
+                        count_of_last_timeslots += 1
+    assert count_of_last_timeslots == 3
 
 def test_lessons_grouped_by_lesson_id():
     university = University(weeks=4)

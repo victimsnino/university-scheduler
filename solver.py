@@ -605,17 +605,19 @@ class Solver:
         cached_is_just_have_different_type_of_week = False
 
         def add_constraint_for_balanced(self, is_soft_constraint, similar_type_of_week, indexes, values):
+            s_c =  global_config.soft_constraints
             if not is_soft_constraint and not similar_type_of_week:
-                if global_config.soft_constraints.lessons_in_similar_day_and_ts_level_of_solve == 2:
+                if s_c.lessons_in_similar_day_and_ts_level_of_solve == 2:
                     is_soft_constraint = True
-                elif global_config.soft_constraints.lessons_in_similar_day_and_ts_level_of_solve == 1:
+                elif s_c.lessons_in_similar_day_and_ts_level_of_solve == 1:
                     if cached_is_just_have_different_type_of_week:
                         return
                     is_soft_constraint = True
                         
                         
             if is_soft_constraint:
-                temp_variables = list(self.model.variables.add( obj=[global_config.soft_constraints.lessons_in_similar_day_and_ts_penalty*(1+similar_type_of_week)]*2,
+                penalty = s_c.lessons_in_similar_day_and_ts_penalty*(1+s_c.similar_week_multiply*similar_type_of_week)
+                temp_variables = list(self.model.variables.add( obj=[penalty]*2,
                                                                 lb=[0]*2, 
                                                                 ub=[1]*2,
                                                                 types=[self.model.variables.type.binary]*2))
@@ -653,7 +655,6 @@ class Solver:
 
                 indexes = wi + wj
                 values = [1]*len(wi) + [-1]*len(wj)
-
                 add_constraint_for_balanced(self, is_soft_constraint, similar_type_of_week, indexes, values)
 
     
@@ -675,6 +676,9 @@ class Solver:
         _add_constraint(self.model, lesson_tracker_source+room_tracker_source+new_var, '>=', 0, [1]*len(lesson_tracker_source)+[-1]*len(room_tracker_source)+[1])
 
     def __soft_constraint_last_day_in_week(self):
+        if len(self.university.lessons) == 0:
+            return
+
         if global_config.soft_constraints.last_day_in_week_penalty <= 0 or global_config.study_days <= 1:
             return
 
@@ -684,6 +688,31 @@ class Solver:
         indexes = _get_indexes_of_timeslots_by_filter(self.model.variables, day=global_config.study_days-1)
 
         _add_constraint(self.model, indexes+new_var, '==', 0, [1]*len(indexes)+[-1])
+
+    def __soft_constraint_first_or_last_timeslot_in_day(self):
+        if len(self.university.lessons) == 0:
+            return
+
+        #if  global_config.time_slots_per_day_available <= 1:
+        #    return
+            
+        if global_config.bachelor_time_slots_per_day < 2:
+            return
+
+        def add_constraint_for_timeslot(timeslot, penalty):
+            if penalty <= 0:
+                return
+
+            new_var = list(self.model.variables.add(obj=[penalty],
+                                lb=[0], 
+                                types=[self.model.variables.type.integer]))
+
+            indexes = _get_indexes_of_timeslots_by_filter(self.model.variables, timeslot=timeslot)
+
+            _add_constraint(self.model, indexes+new_var, '==', 0, [1]*len(indexes)+[-1])
+
+        add_constraint_for_timeslot(0, global_config.soft_constraints.first_timeslot_in_day_penalty)
+        add_constraint_for_timeslot(global_config.bachelor_time_slots_per_day-1, global_config.soft_constraints.last_timeslot_in_day_penalty)
 
     def solve(self):
         #self.model.set_results_stream(None) # ignore standart useless output
@@ -707,6 +736,7 @@ class Solver:
                                                 self.__soft_constraint_lessons_balanced_during_module,
                                                 self.__soft_constraint_count_of_lessons_more_than_count_of_rooms,
                                                 self.__soft_constraint_last_day_in_week,
+                                                self.__soft_constraint_first_or_last_timeslot_in_day,
                                                 self.model.solve
                                                 ]):
             print()
