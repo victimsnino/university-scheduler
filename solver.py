@@ -674,6 +674,17 @@ class Solver:
 
         _add_constraint(self.model, lesson_tracker_source+room_tracker_source+new_var, '>=', 0, [1]*len(lesson_tracker_source)+[-1]*len(room_tracker_source)+[1])
 
+    def __soft_constraint_last_day_in_week(self):
+        if global_config.soft_constraints.last_day_in_week_penalty <= 0 or global_config.study_days <= 1:
+            return
+
+        new_var = list(self.model.variables.add(obj=[global_config.soft_constraints.last_day_in_week_penalty],
+                            lb=[0], 
+                            types=[self.model.variables.type.integer]))
+        indexes = _get_indexes_of_timeslots_by_filter(self.model.variables, day=global_config.study_days-1)
+
+        _add_constraint(self.model, indexes+new_var, '==', 0, [1]*len(indexes)+[-1])
+
     def solve(self):
         #self.model.set_results_stream(None) # ignore standart useless output
 
@@ -695,6 +706,7 @@ class Solver:
                                                 self.__soft_constraint_min_lessons_per_day,
                                                 self.__soft_constraint_lessons_balanced_during_module,
                                                 self.__soft_constraint_count_of_lessons_more_than_count_of_rooms,
+                                                self.__soft_constraint_last_day_in_week,
                                                 self.model.solve
                                                 ]):
             print()

@@ -11,9 +11,11 @@ class SoftConstraints:
         self.min_lessons_per_day_penalty                    = 6 # My opinion, that it should be greater, than bachelor_time_slots_per_day*stability_penalty
         
         self.lessons_in_similar_day_and_ts_penalty          = 1
-        # 1 - fast but can be not optimal,  2 - partly optimal and partly fast, 3 - optimal
+        # 1 - fast but can be not optimal (or infeasible),  2 - partly optimal and partly fast, 3 - optimal
         self.lessons_in_similar_day_and_ts_level_of_solve   = 1
         self.minimize_count_of_rooms_per_day_penalty        = 0.1
+        # nobody wants to study on saturday
+        self.last_day_in_week_penalty                       = 0.1
         
 class Config:
     def __init__(self):

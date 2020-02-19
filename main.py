@@ -54,6 +54,9 @@ Done:
 
 * __soft_constraint_count_of_lessons_more_than_count_of_rooms
     * Count of lessons >= count of rooms. It means, that it is require to have only 1 room for lesson during day
+    
+* __soft_constraint_last_day_in_week
+    * Nobody wants to learn last day a week
 
 * Split groups to bachelors and magistrecy for splitting by timeslots
 * It is possible to set day of week for start or end of module and count of weeks

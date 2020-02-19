@@ -504,14 +504,44 @@ def test_full_module_for_second_course():
             for day, tss in sorted(days.items()):
                 assert len(tss) == 0 or len(tss) >= 2
 
+def test_no_lessons_in_saturday():
+    university = University(weeks=4)
+    university.add_room(1, 1, RoomType.LECTURE, 10)
+    university.add_group('Group', 1, GroupType.BACHELOR)
+    university.add_teacher('Teacher').ban_time_slots(day=2).ban_time_slots(day=3).ban_time_slots(day=1).ban_time_slots(timeslot=3)
+    university.add_lesson('Lesson1', ['Group'], 12, RoomType.LECTURE, ['Teacher'])
+    university.add_lesson('Lesson2', ['Group'], 12, RoomType.LECTURE, ['Teacher'])
+    university.add_lesson('Lesson3', ['Group'], 12, RoomType.LECTURE, ['Teacher'])
+
+    solver = Solver(university)
+    res, out = solver.solve()
+    assert res
+    open_as_html(out, university)
+
+    for group, weeks in sorted(out.items()):
+        for week, days in sorted(weeks.items()):
+            assert global_config.study_days-1 in days
+
+    global_config.soft_constraints.last_day_in_week_penalty = 300
+
+    solver1 = Solver(university)
+    res, out = solver1.solve()
+    assert res
+    open_as_html(out, university)
+
+    for group, weeks in sorted(out.items()):
+        for week, days in sorted(weeks.items()):
+            assert not global_config.study_days-1 in days
+
+
 def test_lessons_grouped_by_lesson_id():
     university = University(weeks=4)
     university.add_room(1, 1, RoomType.LECTURE, 10)
     university.add_group('Group', 1, GroupType.BACHELOR)
     university.add_teacher('Teacher')
-    university.add_lesson('Lesson1', ['Group'], 10, RoomType.LECTURE, ['Teacher'])
-    university.add_lesson('Lesson2', ['Group'], 10, RoomType.LECTURE, ['Teacher'])
-    university.add_lesson('Lesson3', ['Group'], 10, RoomType.LECTURE, ['Teacher'])
+    university.add_lesson('Lesson1', ['Group'], 12, RoomType.LECTURE, ['Teacher'])
+    university.add_lesson('Lesson2', ['Group'], 12, RoomType.LECTURE, ['Teacher'])
+    university.add_lesson('Lesson3', ['Group'], 12, RoomType.LECTURE, ['Teacher'])
 
     solver = Solver(university)
     res, out = solver.solve()
