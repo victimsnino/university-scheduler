@@ -20,15 +20,20 @@ class SoftConstraints:
         # nobody wants to study on saturday
         self.last_day_in_week_penalty                       = 0.1
         
-        #these two variables only for Bachelors
-        self.first_timeslot_in_day_penalty                  = 1
-        self.last_timeslot_in_day_penalty                   = 1
+        self.timeslots_penalty                              = [1, 0, 0.01, 0.1, 0.1, 1, 0, 0]
+
+        self.min_count_of_specific_lessons_during_day       = 2  # as a result, it tries to group at least by X lessons by day
+        self.min_count_of_specific_lessons_penalty          = 1
+
+        self.max_count_of_specific_lessons_during_day       = 3  # as a result, it tries to group maximum by X lessons by day
+        self.max_count_of_specific_lessons_penalty          = 1
         
 class Config:
     def __init__(self):
         self.reset()
         
     def reset(self):
+        self.timelimit_for_solve            = 60
         self.bachelor_time_slots_per_day    = 6
         self.magistracy_time_slots_per_day  = 2
         # Expected, that lessons for magistracy AFTER bachelors

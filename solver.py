@@ -5,6 +5,7 @@ from university import University, Lesson, Teacher
 import copy
 import progressbar
 from functools import wraps
+import warnings
 
 
 timeslots_filter_cache = {}
@@ -190,7 +191,7 @@ def _get_timeslots_for_rooms(function):
                 function(self, source=temp, room_i = room.room_number, corpus_i=corpus_i, **kwargs)
     return _decorator
 
-def _get_timeslot_for_groups_or_teachers(function):
+def _get_timeslots_for_groups_or_teachers(function):
     @wraps(function)
     def _decorator(self, source=None, **kwargs):
         for container, format_out, column in self._get_groups_teachers_list():
@@ -258,6 +259,7 @@ class Solver:
         self.model.objective.set_sense(self.model.objective.sense.minimize)
         #self.model.parameters.mip.strategy.search.set(1)
         self.model.parameters.simplex.limits.lowerobj.set(0)
+        self.model.parameters.timelimit.set(global_config.timelimit_for_solve)
         
         global timeslots_filter_cache
         timeslots_filter_cache.clear()
@@ -294,7 +296,7 @@ class Solver:
 
     @_get_timeslots_for_corpuses
     @_get_timeslots_for_week_and_day
-    @_get_timeslot_for_groups_or_teachers
+    @_get_timeslots_for_groups_or_teachers
     def __fill_dummy_variables_for_tracking_corpuses(self, source = None, week_i = None, day_i = None, corpus_i = None, format_out = None, ith=None,  **kwargs):
         ''' 
         Add dummy variables for corpus tracking (Group or teacher has lection in i-th corpus)
@@ -316,7 +318,7 @@ class Solver:
     
     @_get_timeslots_for_rooms
     @_get_timeslots_for_week_and_day
-    @_get_timeslot_for_groups_or_teachers
+    @_get_timeslots_for_groups_or_teachers
     def __fill_dummy_variables_for_tracking_rooms(self, source = None, week_i = None, day_i = None, corpus_i = None, room_i = None, format_out = None, ith=None,  **kwargs):
         ''' 
         Add dummy variables for corpus tracking (Group or teacher has lection in i-th corpus)
@@ -338,7 +340,7 @@ class Solver:
     
     @_get_timeslot_for_lessons
     @_get_timeslots_for_week_and_day
-    @_get_timeslot_for_groups_or_teachers
+    @_get_timeslots_for_groups_or_teachers
     def __fill_dummy_variables_for_tracking_lessons(self, source = None, week_i = None, day_i = None, lesson = None, column = None, ith=None,  **kwargs):
         ''' 
         Add dummy variables for corpus tracking (Group or teacher has lection in i-th corpus)
@@ -389,7 +391,7 @@ class Solver:
 
     @_get_timeslots_for_timeslots
     @_get_timeslots_for_week_and_day
-    @_get_timeslot_for_groups_or_teachers
+    @_get_timeslots_for_groups_or_teachers
     def __constraint_group_or_teacher_only_in_one_room_per_timeslot(self, source=None, **kwargs):
         _add_constraint(self.model, source, '<=', 1)
 
@@ -399,7 +401,7 @@ class Solver:
         _add_constraint(self.model, corpus_tracker_source, '<=', 1)
 
     @_get_timeslots_for_week_and_day
-    @_get_timeslot_for_groups_or_teachers
+    @_get_timeslots_for_groups_or_teachers
     def __constraint_max_lessons_per_day_for_teachers_or_groups(self, source=None, **kwargs):
         '''
         Every teacher or group can be busy only limited count of lessons per day
@@ -407,7 +409,7 @@ class Solver:
         _add_constraint(self.model, source, '<=', global_config.max_lessons_per_day)
     
     @_get_timeslots_for_week_only
-    @_get_timeslot_for_groups_or_teachers
+    @_get_timeslots_for_groups_or_teachers
     def __constraint_max_lessons_per_week_for_teachers_or_groups(self, source=None, **kwargs):
         '''
         Every teacher or group can be busy only limited count of lessons per week
@@ -451,7 +453,7 @@ class Solver:
                     _add_constraint(self.model, should_be_after_indexes[:after_till_index]+original_indexes[:original_till_index], '>=', 0,
                                     [float(lesson.count/should_be_after_this.count)]*after_till_index+[-1]*original_till_index)
 
-    @_get_timeslot_for_groups_or_teachers
+    @_get_timeslots_for_groups_or_teachers
     def __local_constraint_teacher_or_group_has_banned_ts(self, source = None, teacher_or_group = None, **kwargs):
         for week, day, timeslot in teacher_or_group.banned_time_slots:
             if week is None:
@@ -473,7 +475,7 @@ class Solver:
             _add_constraint(self.model, indexes, '==', 0)
 
     @_get_timeslots_for_week_and_day
-    @_get_timeslot_for_groups_or_teachers
+    @_get_timeslots_for_groups_or_teachers
     def __constraint_ban_windows(self, source=None, column = None, **kwargs):
         '''
         Ban windows between lessons\n
@@ -518,7 +520,7 @@ class Solver:
             _add_constraint(self.model, indexes, '<=', 1)
 
     @_get_timeslots_for_week_and_day
-    @_get_timeslot_for_groups_or_teachers
+    @_get_timeslots_for_groups_or_teachers
     def __soft_constraint_max_lessons_per_day(self, source=None, **kwargs):
         if  global_config.soft_constraints.max_lessons_per_day_penalty <= 0 or \
             global_config.soft_constraints.max_lessons_per_day <= 0 or  \
@@ -534,7 +536,7 @@ class Solver:
             _add_constraint(self.model, source+excess_var, '<=', excess_lessons_per_day, [1]*len(source)+[-1])
 
     @_get_timeslots_for_week_and_day
-    @_get_timeslot_for_groups_or_teachers
+    @_get_timeslots_for_groups_or_teachers
     def __soft_constraint_min_lessons_per_day(self, source=None, **kwargs):
         if  global_config.soft_constraints.min_lessons_per_day_penalty <= 0 or \
             global_config.soft_constraints.min_lessons_per_day <= 0 or  \
@@ -693,12 +695,6 @@ class Solver:
         if len(self.university.lessons) == 0:
             return
 
-        #if  global_config.time_slots_per_day_available <= 1:
-        #    return
-            
-        if global_config.bachelor_time_slots_per_day < 2:
-            return
-
         def add_constraint_for_timeslot(timeslot, penalty):
             if penalty <= 0:
                 return
@@ -711,11 +707,50 @@ class Solver:
 
             _add_constraint(self.model, indexes+new_var, '==', 0, [1]*len(indexes)+[-1])
 
-        add_constraint_for_timeslot(0, global_config.soft_constraints.first_timeslot_in_day_penalty)
-        add_constraint_for_timeslot(global_config.bachelor_time_slots_per_day-1, global_config.soft_constraints.last_timeslot_in_day_penalty)
+        for ts, penalty in enumerate(global_config.soft_constraints.timeslots_penalty):
+            add_constraint_for_timeslot(ts, penalty)
+
+    @_get_timeslots_for_week_and_day
+    @_get_timeslots_for_groups_or_teachers
+    def __soft_constraint_reduce_ratio_of_lessons_and_subjects(self, source =  None, week_i = None, day_i = None, column= None, ith = None, **kwargs):
+        
+        sc = global_config.soft_constraints
+        min_count           = sc.min_count_of_specific_lessons_during_day
+        min_count_penalty   = sc.min_count_of_specific_lessons_penalty
+
+        max_count           = sc.max_count_of_specific_lessons_during_day
+        max_count_penalty   = sc.max_count_of_specific_lessons_penalty
+
+        min_is_able         = min_count > 0 and min_count_penalty > 0
+        max_is_able         = max_count > 0 and max_count_penalty > 0
+
+        if not min_is_able and not max_is_able:
+            return;
+
+
+        lessons_tracker = eval('_get_lesson_tracker_by_filter(self.model.variables, week=week_i, day=day_i, %s=ith)' % column)
+
+        if min_is_able:
+            new_var = list(self.model.variables.add(obj=[min_count_penalty],
+                                    lb=[0], 
+                                    types=[self.model.variables.type.integer]))
+
+            _add_constraint(self.model, source+lessons_tracker + new_var, '>=', 0, [1/min_count]*len(source)+[-1]*len(lessons_tracker)+[1])
+        
+        if max_is_able:
+            new_var = list(self.model.variables.add(obj=[max_count_penalty],
+                                    lb=[0], 
+                                    types=[self.model.variables.type.integer]))
+
+            _add_constraint(self.model, source+lessons_tracker + new_var, '<=', 0, [1/max_count]*len(source)+[-1]*len(lessons_tracker)+[1])
+
+
 
     def solve(self):
         #self.model.set_results_stream(None) # ignore standart useless output
+        if len(global_config.soft_constraints.timeslots_penalty) != global_config.time_slots_per_day_available:
+            warnings.warn('Expected equality of len of timeslots_penalty and timee_slots_per_day_available')
+            print('Expected equality of len of timeslots_penalty and timee_slots_per_day_available')
 
         for method in progressbar.progressbar([ self.__fill_lessons_to_time_slots,
                                                 self.__fill_dummy_variables_for_tracking_corpuses,
@@ -737,6 +772,7 @@ class Solver:
                                                 self.__soft_constraint_count_of_lessons_more_than_count_of_rooms,
                                                 self.__soft_constraint_last_day_in_week,
                                                 self.__soft_constraint_first_or_last_timeslot_in_day,
+                                                self.__soft_constraint_reduce_ratio_of_lessons_and_subjects,
                                                 self.model.solve
                                                 ]):
             print()
@@ -745,14 +781,13 @@ class Solver:
         
         debug(self.model.variables.get_names())
         output = self.__parse_output_and_create_schedule()
-        return not (self.model.solution.get_status() != 1 and self.model.solution.get_status() != 101), output
+        return not output is None, output
 
     def __parse_output_and_create_schedule(self):
         print("Solution status = ",     self.model.solution.get_status(), ":", self.model.solution.status[self.model.solution.get_status()])
-        if (self.model.solution.get_status() == 1 or self.model.solution.get_status() == 101):
+        if self.model.solution.get_status() in [1, 101, 107]:
             print("Value: ", self.model.solution.get_objective_value())
-            
-        if self.model.solution.get_status() != 1 and self.model.solution.get_status() != 101:
+        else:
             return None
 
         debug("Array of X = %s" %           self.model.solution.get_values())

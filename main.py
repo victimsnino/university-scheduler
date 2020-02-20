@@ -58,6 +58,9 @@ Done:
 * __soft_constraint_last_day_in_week
     * Nobody wants to learn last day a week
 
+*__soft_constraint_reduce_ratio_of_lessons_and_subjects
+    * Grouping lessons by lessonid during every day.
+
 * Split groups to bachelors and magistrecy for splitting by timeslots
 * It is possible to set day of week for start or end of module and count of weeks
 * Easy parser for output - parse_output_and_create_schedule

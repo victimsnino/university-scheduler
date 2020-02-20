@@ -562,8 +562,8 @@ def test_no_lessons_first_timeslot():
 def test_lessons_grouped_by_lesson_id():
     university = University(weeks=4)
     university.add_room(1, 1, RoomType.LECTURE, 10)
-    university.add_group('Group', 1, GroupType.BACHELOR)
-    university.add_teacher('Teacher')
+    university.add_group('Group', 1, GroupType.BACHELOR).ban_time_slots(day=0)
+    university.add_teacher('Teacher').ban_time_slots(day=1).ban_time_slots(day=2)
     university.add_lesson('Lesson1', ['Group'], 12, RoomType.LECTURE, ['Teacher'])
     university.add_lesson('Lesson2', ['Group'], 12, RoomType.LECTURE, ['Teacher'])
     university.add_lesson('Lesson3', ['Group'], 12, RoomType.LECTURE, ['Teacher'])
@@ -572,4 +572,12 @@ def test_lessons_grouped_by_lesson_id():
     res, out = solver.solve()
     open_as_html(out, university)
 
+    for group, weeks in sorted(out.items()):
+        for week, days in sorted(weeks.items()):
+            for day, tss in sorted(days.items()):
+                uniq_lessons = set()
+                for ts, data in sorted(tss.items()):
+                    corpus, room, lesson, _type, teacher, other_groups = data
+                    uniq_lessons.add(lesson)
+                assert len(uniq_lessons) <= 1
 
