@@ -28,6 +28,9 @@ class SoftConstraints:
         self.max_count_of_specific_lessons_during_day       = 3  # as a result, it tries to group maximum by X lessons by day
         self.max_count_of_specific_lessons_penalty          = 1
         
+         # value < 0  is Hard constraint
+        self.grouping_subjects_during_day_penalty           = 1
+        
 class Config:
     def __init__(self):
         self.reset()

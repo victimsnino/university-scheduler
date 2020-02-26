@@ -450,7 +450,7 @@ def test_full_module_for_two_groups():
 
 def test_full_module_for_second_course():
     #global_config.soft_constraints.minimize_count_of_rooms_per_day_penalty = 0
-    
+    #global_config.timelimit_for_solve = 120
     weeks = 2
     university = University(weeks=2)
 
@@ -516,7 +516,6 @@ def test_no_lessons_in_saturday():
     solver = Solver(university)
     res, out = solver.solve()
     assert res
-    open_as_html(out, university)
 
     for group, weeks in sorted(out.items()):
         for week, days in sorted(weeks.items()):
@@ -527,7 +526,6 @@ def test_no_lessons_in_saturday():
     solver1 = Solver(university)
     res, out = solver1.solve()
     assert res
-    open_as_html(out, university)
 
     for group, weeks in sorted(out.items()):
         for week, days in sorted(weeks.items()):
@@ -547,7 +545,6 @@ def test_no_lessons_first_timeslot():
     solver = Solver(university)
     res, out = solver.solve()
     assert res
-    open_as_html(out, university)
     
     count_of_last_timeslots = 0
     for group, weeks in sorted(out.items()):
@@ -559,7 +556,7 @@ def test_no_lessons_first_timeslot():
                         count_of_last_timeslots += 1
     assert count_of_last_timeslots == 3
 
-def test_lessons_grouped_by_lesson_id():
+def test_lessons_grouped_by_lesson_id_during_week():
     university = University(weeks=4)
     university.add_room(1, 1, RoomType.LECTURE, 10)
     university.add_group('Group', 1, GroupType.BACHELOR).ban_time_slots(day=0)
@@ -580,4 +577,30 @@ def test_lessons_grouped_by_lesson_id():
                     corpus, room, lesson, _type, teacher, other_groups = data
                     uniq_lessons.add(lesson)
                 assert len(uniq_lessons) <= 1
+
+
+def test_lessons_grouped_by_lesson_id_during_day():
+    university = University(weeks=4)
+    university.add_room(1, 1, RoomType.LECTURE, 10)
+    university.add_group('Group', 1, GroupType.BACHELOR).ban_time_slots(day=0)
+    university.add_teacher('Teacher').ban_time_slots(day=1).ban_time_slots(day=2)
+    university.add_lesson('Lesson1', ['Group'], 16, RoomType.LECTURE, ['Teacher'])
+    university.add_lesson('Lesson2', ['Group'], 16, RoomType.LECTURE, ['Teacher'])
+    university.add_lesson('Lesson3', ['Group'], 16, RoomType.LECTURE, ['Teacher'])
+
+    solver = Solver(university)
+    res, out = solver.solve()
+    open_as_html(out, university)
+
+    for group, weeks in sorted(out.items()):
+        for week, days in sorted(weeks.items()):
+            for day, tss in sorted(days.items()):
+                lessons_cache = []
+                for ts, data in sorted(tss.items()):
+                    corpus, room, lesson, _type, teacher, other_groups = data
+                    if not lesson in lessons_cache:
+                        lessons_cache.append(lesson)
+                    else:
+                        assert lessons_cache.index(lesson) == len(lessons_cache) -1
+
 

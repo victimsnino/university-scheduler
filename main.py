@@ -59,7 +59,10 @@ Done:
     * Nobody wants to learn last day a week
 
 *__soft_constraint_reduce_ratio_of_lessons_and_subjects
-    * Grouping lessons by lessonid during every day.
+    * Grouping lessons by lessonid by days during week.
+
+* __soft_constraint_ban_windows_between_one_subject_during_day
+    * Grouping lessons by lessonid during day
 
 * Split groups to bachelors and magistrecy for splitting by timeslots
 * It is possible to set day of week for start or end of module and count of weeks

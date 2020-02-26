@@ -201,12 +201,12 @@ def _get_timeslots_for_groups_or_teachers(function):
                 function(self, source=temp, ith=ith, format_out=format_out, teacher_or_group=teacher_or_group, column=column, **kwargs)
     return _decorator
 
-def _get_timeslot_for_lessons(function):
+def _get_timeslots_for_lessons(function):
     @wraps(function)
     def _decorator(self, source=None, **kwargs):
         for lesson_i, lesson in enumerate(self.university.lessons):
             temp = self.model.variables.get_names(_get_indexes_of_timeslots_by_filter(self.model.variables, lesson=str(lesson_i), source=source))
-            function(self, source=temp, lesson=lesson, **kwargs)
+            function(self, source=temp, lesson=lesson, lesson_i=lesson_i, **kwargs)
     return _decorator
 
 ##########################################
@@ -338,7 +338,7 @@ class Solver:
                         [1]*len(lections_indexes)+[-1*global_config.time_slots_per_day_available])
 
     
-    @_get_timeslot_for_lessons
+    @_get_timeslots_for_lessons
     @_get_timeslots_for_week_and_day
     @_get_timeslots_for_groups_or_teachers
     def __fill_dummy_variables_for_tracking_lessons(self, source = None, week_i = None, day_i = None, lesson = None, column = None, ith=None,  **kwargs):
@@ -360,7 +360,7 @@ class Solver:
                         [1]*len(lections_indexes)+[-1*global_config.time_slots_per_day_available])
 
 
-    @_get_timeslot_for_lessons
+    @_get_timeslots_for_lessons
     def __fill_dummy_variables_for_tracking_teachers(self, source = None, lesson=None, **kwargs):
         ''' 
         Add dummy variables for teachers tracking (which teachers marked for current lesson during module)
@@ -381,7 +381,7 @@ class Solver:
             _add_constraint(self.model, lections_indexes + teacher_tracker_index, '>=', -1*(lesson.count-1), 
                             [1]*len(lections_indexes)+[-1*lesson.count])
 
-    @_get_timeslot_for_lessons
+    @_get_timeslots_for_lessons
     def __constraint_total_count_of_lessons(self, source = None, lesson = None, **kwargs):
         ''' 
         Every lesson should have a count of lessons, which we request \n
@@ -474,16 +474,7 @@ class Solver:
             indexes = _get_indexes_of_timeslots_by_filter(self.model.variables, week=week, day=day, timeslot=timeslot, source=source)
             _add_constraint(self.model, indexes, '==', 0)
 
-    @_get_timeslots_for_week_and_day
-    @_get_timeslots_for_groups_or_teachers
-    def __constraint_ban_windows(self, source=None, column = None, **kwargs):
-        '''
-        Ban windows between lessons\n
-        Take all combinations of length 3,4,5....,lessons_per_day and check, that it doesn't looks like 1,0.....,0,1
-        '''
-        if global_config.time_slots_per_day_available <= 2 or global_config.windows_penalty == 0:
-            return
-        
+    def __ban_windows(self, source, penalty):
         indexes_by_ts = []
         for timeslot in range(global_config.time_slots_per_day_available):
             indexes_by_ts.append(_get_indexes_of_timeslots_by_filter(self.model.variables, source=source, timeslot=timeslot))
@@ -498,11 +489,8 @@ class Solver:
                     val += [v]*len(indexes_by_ts[ts])
                     temp_indexes += indexes_by_ts[ts]
 
-                if global_config.windows_penalty > 0: # A.K.A Hard constraint
-                    obj = global_config.windows_penalty*(max_timeslots-2)
-                    if column == 'group_id':
-                        obj *= global_config.windows_groups_multiplier
-
+                if penalty > 0: # A.K.A soft constraint
+                    obj = penalty*(max_timeslots-2)
                     temp_indexes.append(self.model.variables.add(   obj=[obj],
                                                                     lb=[0], 
                                                                     ub=[1],
@@ -510,6 +498,22 @@ class Solver:
                     val.append(-2)
 
                 _add_constraint(self.model, temp_indexes, '<=', 1, val)
+
+    @_get_timeslots_for_week_and_day
+    @_get_timeslots_for_groups_or_teachers
+    def __constraint_ban_windows(self, source=None, column = None, **kwargs):
+        '''
+        Ban windows between lessons\n
+        Take all combinations of length 3,4,5....,lessons_per_day and check, that it doesn't looks like 1,0.....,0,1
+        '''
+        if global_config.time_slots_per_day_available <= 2 or global_config.windows_penalty == 0:
+            return
+        
+        penalty = global_config.windows_penalty
+        if column == 'group_id':
+            penalty *= global_config.windows_groups_multiplier
+        
+        self.__ban_windows(source, penalty)
     
     def __constraint_one_teacher_per_lessons(self):
         for lesson in self.university.lessons:
@@ -565,7 +569,7 @@ class Solver:
         _add_constraint(self.model, vars, '==', 1)
     
     @_get_timeslots_for_timeslots
-    @_get_timeslot_for_lessons
+    @_get_timeslots_for_lessons
     @_get_timeslots_for_day_only
     @_get_timeslots_for_rooms
     def __soft_constraint_lessons_balanced_during_module(self, source = None, lesson=None, day_i = None, **kwargs):
@@ -712,7 +716,8 @@ class Solver:
 
     @_get_timeslots_for_week_and_day
     @_get_timeslots_for_groups_or_teachers
-    def __soft_constraint_reduce_ratio_of_lessons_and_subjects(self, source =  None, week_i = None, day_i = None, column= None, ith = None, **kwargs):
+    @_get_timeslots_for_lessons
+    def __soft_constraint_reduce_ratio_of_lessons_and_subjects(self, source =  None, week_i = None, day_i = None, column= None, ith = None, lesson_i=None, **kwargs):
         
         sc = global_config.soft_constraints
         min_count           = sc.min_count_of_specific_lessons_during_day
@@ -728,7 +733,7 @@ class Solver:
             return;
 
 
-        lessons_tracker = eval('_get_lesson_tracker_by_filter(self.model.variables, week=week_i, day=day_i, %s=ith)' % column)
+        lessons_tracker = eval('_get_lesson_tracker_by_filter(self.model.variables, week=week_i, day=day_i, lesson_id = lesson_i, %s=ith)' % column)
 
         if min_is_able:
             new_var = list(self.model.variables.add(obj=[min_count_penalty],
@@ -742,9 +747,20 @@ class Solver:
                                     lb=[0], 
                                     types=[self.model.variables.type.integer]))
 
-            _add_constraint(self.model, source+lessons_tracker + new_var, '<=', 0, [1/max_count]*len(source)+[-1]*len(lessons_tracker)+[1])
+            _add_constraint(self.model, source+lessons_tracker + new_var, '<=', 0, [1/max_count]*len(source)+[-1]*len(lessons_tracker)+[-1])
 
-
+    @_get_timeslots_for_week_and_day
+    @_get_timeslots_for_lessons
+    def __soft_constraint_ban_windows_between_one_subject_during_day(self, source=None, **kwargs):
+        '''
+        Ban windows between lessons of one subject. Another words, grouping subjects during day\n
+        Take all combinations of length 3,4,5....,lessons_per_day and check, that it doesn't looks like 1,0.....,0,1
+        '''
+        penalty = global_config.soft_constraints.grouping_subjects_during_day_penalty
+        if global_config.time_slots_per_day_available <= 2 or penalty == 0:
+            return
+        
+        self.__ban_windows(source, penalty)
 
     def solve(self):
         #self.model.set_results_stream(None) # ignore standart useless output
@@ -773,6 +789,7 @@ class Solver:
                                                 self.__soft_constraint_last_day_in_week,
                                                 self.__soft_constraint_first_or_last_timeslot_in_day,
                                                 self.__soft_constraint_reduce_ratio_of_lessons_and_subjects,
+                                                self.__soft_constraint_ban_windows_between_one_subject_during_day,
                                                 self.model.solve
                                                 ]):
             print()
