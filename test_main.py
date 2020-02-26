@@ -184,6 +184,7 @@ def test_max_lessons_per_week():
 
 def test_teacher_ban_some_tss():
     global_config.time_slots_per_day_available = 3
+    global_config.soft_constraints.timeslots_penalty = [0,0,0]
 
     university = University(0,0,1)
     university.add_room(1, 120, RoomType.LECTURE,   100) 
@@ -197,6 +198,7 @@ def test_teacher_ban_some_tss():
     assert not res
 
     global_config.time_slots_per_day_available = 4
+    global_config.soft_constraints.timeslots_penalty = [0,0,0,0]
     solver = Solver(university)
     res, _ = solver.solve()
     assert res
@@ -295,6 +297,7 @@ def test_ban_windows_2():
 
 def test_ban_windows_soft():
     global_config.time_slots_per_day_available = 4
+    global_config.soft_constraints.timeslots_penalty = [0,0,0,0]
     
     university = University(0, 0, 1)
 

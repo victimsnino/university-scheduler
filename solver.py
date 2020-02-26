@@ -765,8 +765,9 @@ class Solver:
     def solve(self):
         #self.model.set_results_stream(None) # ignore standart useless output
         if len(global_config.soft_constraints.timeslots_penalty) != global_config.time_slots_per_day_available:
-            warnings.warn('Expected equality of len of timeslots_penalty and timee_slots_per_day_available')
-            print('Expected equality of len of timeslots_penalty and timee_slots_per_day_available')
+            msg = 'Expected equality of len of timeslots_penalty and timee_slots_per_day_available. Len %s timeslots %s' % (len(global_config.soft_constraints.timeslots_penalty), global_config.time_slots_per_day_available)
+            warnings.warn(msg)
+            print(msg)
 
         for method in progressbar.progressbar([ self.__fill_lessons_to_time_slots,
                                                 self.__fill_dummy_variables_for_tracking_corpuses,
