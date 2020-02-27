@@ -568,39 +568,7 @@ class Solver:
         _add_constraint(self.model, source + vars, '==', min_lessons, [1]*len(source)+indicies)
         _add_constraint(self.model, vars, '==', 1)
     
-    @_get_timeslots_for_timeslots
-    @_get_timeslots_for_lessons
-    @_get_timeslots_for_day_only
-    @_get_timeslots_for_rooms
-    def __soft_constraint_lessons_balanced_during_module(self, source = None, lesson=None, day_i = None, **kwargs):
-        '''
-        It is very cool, when lessons on every week placed at similar day and timeslot
-        '''
-        if len(source) == 0:
-            return
-
-        if global_config.soft_constraints.lessons_in_similar_day_and_ts_penalty <= 0 or self.university.study_weeks <= 1:
-            return
-
-        if lesson.count < self.university.study_weeks/2:
-            print("Lesson {0} can be potential reason for slowing of solving (count of lessons lower, than count of weeks/2.".format(lesson))
-
-        banned_weeks_only = set()
-
-        groups_and_teachers = []
-        for group_i in lesson.group_indexes:
-            groups_and_teachers.append(self.university.groups[group_i])
-        for teacher_i in lesson.teacher_indexes:
-            groups_and_teachers.append(self.university.teachers[teacher_i])
-
-        for group_or_teacher in groups_and_teachers:
-            for week, day, ts in group_or_teacher.banned_time_slots:
-                if not week is None:
-                    if day is None or day == day_i:
-                        banned_weeks_only.add(week)
-                elif not day is None and day == day_i:
-                    return
-
+    def __balance_timeslots_in_current_day_every_week(self, source, level_of_solve, base_penalty, multiple_for_similar_type, banned_weeks_only, lesson = None):
         ts_by_weeks = {}
         @_get_timeslots_for_week_only
         def get_timeslots_for_week(self, source=None, week_i=None,  **kwargs):
@@ -611,18 +579,17 @@ class Solver:
         cached_is_just_have_different_type_of_week = False
 
         def add_constraint_for_balanced(self, is_soft_constraint, similar_type_of_week, indexes, values):
-            s_c =  global_config.soft_constraints
             if not is_soft_constraint and not similar_type_of_week:
-                if s_c.lessons_in_similar_day_and_ts_level_of_solve == 2:
+                if level_of_solve == 2:
                     is_soft_constraint = True
-                elif s_c.lessons_in_similar_day_and_ts_level_of_solve == 1:
+                elif level_of_solve == 1:
                     if cached_is_just_have_different_type_of_week:
                         return
                     is_soft_constraint = True
                         
                         
             if is_soft_constraint:
-                penalty = s_c.lessons_in_similar_day_and_ts_penalty*(1+s_c.similar_week_multiply*similar_type_of_week)
+                penalty = base_penalty*(1+multiple_for_similar_type*similar_type_of_week)
                 temp_variables = list(self.model.variables.add( obj=[penalty]*2,
                                                                 lb=[0]*2, 
                                                                 ub=[1]*2,
@@ -652,16 +619,56 @@ class Solver:
                 is_soft_constraint = False
                 is_have_banned = week_i in banned_weeks_only or week_j in banned_weeks_only
 
-                if global_config.soft_constraints.lessons_in_similar_day_and_ts_level_of_solve == 3:
+                if level_of_solve == 3:
                     is_soft_constraint = True
                 elif is_have_banned:
                     is_soft_constraint = True
-                elif lesson.count < self.university.study_weeks/2:
+                elif lesson and lesson.count < self.university.study_weeks/2:
                     is_soft_constraint = True
 
                 indexes = wi + wj
                 values = [1]*len(wi) + [-1]*len(wj)
                 add_constraint_for_balanced(self, is_soft_constraint, similar_type_of_week, indexes, values)
+
+    @_get_timeslots_for_timeslots
+    @_get_timeslots_for_lessons
+    @_get_timeslots_for_day_only
+    @_get_timeslots_for_rooms
+    def __soft_constraint_lessons_balanced_during_module(self, source = None, lesson=None, day_i = None, **kwargs):
+        '''
+        It is very cool, when lessons on every week placed at similar day and timeslot
+        '''
+        if len(source) == 0:
+            return
+
+        if global_config.soft_constraints.specific_lessons_in_similar_day_and_ts_penalty <= 0 or self.university.study_weeks <= 1:
+            return
+
+        if lesson.count < self.university.study_weeks/2:
+            print("Lesson {0} can be potential reason for slowing of solving (count of lessons lower, than count of weeks/2.".format(lesson))
+
+        banned_weeks_only = set()
+
+        groups_and_teachers = []
+        for group_i in lesson.group_indexes:
+            groups_and_teachers.append(self.university.groups[group_i])
+        for teacher_i in lesson.teacher_indexes:
+            groups_and_teachers.append(self.university.teachers[teacher_i])
+
+        for group_or_teacher in groups_and_teachers:
+            for week, day, ts in group_or_teacher.banned_time_slots:
+                if not week is None:
+                    if day is None or day == day_i:
+                        banned_weeks_only.add(week)
+                elif not day is None and day == day_i:
+                    return
+
+        self.__balance_timeslots_in_current_day_every_week( source, 
+                                                            global_config.soft_constraints.specific_lessons_in_similar_day_and_ts_level_of_solve, 
+                                                            global_config.soft_constraints.specific_lessons_in_similar_day_and_ts_penalty,
+                                                            global_config.soft_constraints.similar_week_multiply,
+                                                            banned_weeks_only,
+                                                            lesson)
 
     
     @_get_room_tracker_for_week_and_day
@@ -762,6 +769,35 @@ class Solver:
         
         self.__ban_windows(source, penalty)
 
+    @_get_timeslots_for_timeslots
+    @_get_timeslots_for_day_only
+    @_get_timeslots_for_groups_or_teachers
+   # @_get_timeslots_for_rooms
+    def __soft_constraint_lessons_balanced_during_module_by_timeslots(self, source = None, day_i = None, teacher_or_group=None, **kwargs):
+        '''
+        It is very cool, when lessons on every week in current day placed at similar timeslot
+        '''
+        if len(source) == 0:
+            return
+
+        if global_config.soft_constraints.lessons_in_similar_day_and_ts_penalty <= 0 or self.university.study_weeks <= 1:
+            return
+
+        banned_weeks_only = set()
+
+        for week, day, ts in teacher_or_group.banned_time_slots:
+            if not week is None:
+                if day is None or day == day_i:
+                    banned_weeks_only.add(week)
+            elif not day is None and day == day_i:
+                return
+
+        self.__balance_timeslots_in_current_day_every_week( source, 
+                                                            global_config.soft_constraints.lessons_in_similar_day_and_ts_level_of_solve, 
+                                                            global_config.soft_constraints.lessons_in_similar_day_and_ts_penalty,
+                                                            global_config.soft_constraints.similar_week_multiply,
+                                                            banned_weeks_only)
+
     def solve(self):
         #self.model.set_results_stream(None) # ignore standart useless output
         if len(global_config.soft_constraints.timeslots_penalty) != global_config.time_slots_per_day_available:
@@ -791,6 +827,7 @@ class Solver:
                                                 self.__soft_constraint_first_or_last_timeslot_in_day,
                                                 self.__soft_constraint_reduce_ratio_of_lessons_and_subjects,
                                                 self.__soft_constraint_ban_windows_between_one_subject_during_day,
+                                                self.__soft_constraint_lessons_balanced_during_module_by_timeslots,
                                                 self.model.solve
                                                 ]):
             print()

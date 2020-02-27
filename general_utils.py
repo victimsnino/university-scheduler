@@ -10,11 +10,15 @@ class SoftConstraints:
         self.min_lessons_per_day                            = 2
         self.min_lessons_per_day_penalty                    = 6 # My opinion, that it should be greater, than bachelor_time_slots_per_day*stability_penalty
         
-        self.lessons_in_similar_day_and_ts_penalty          = 1
+        self.specific_lessons_in_similar_day_and_ts_penalty          = 1
         # multiply for weeks of common type. For example, 0th and 2th week similarity is more prioritized, than 0th and 1th (another words, upper and down weeks)
-        self.similar_week_multiply                          = 10
+        self.similar_week_multiply                          = 5
         # 1 - fast but can be not optimal (or infeasible),  2 - partly optimal and partly fast, 3 - optimal
-        self.lessons_in_similar_day_and_ts_level_of_solve   = 1
+        self.specific_lessons_in_similar_day_and_ts_level_of_solve   = 1
+
+        self.lessons_in_similar_day_and_ts_penalty          = 0.5
+        # 1 - fast but can be not optimal (or infeasible),  2 - partly optimal and partly fast, 3 - optimal
+        self.lessons_in_similar_day_and_ts_level_of_solve   = 3
         
         self.minimize_count_of_rooms_per_day_penalty        = 0.1
         # nobody wants to study on saturday
@@ -30,6 +34,7 @@ class SoftConstraints:
         
          # value < 0  is Hard constraint
         self.grouping_subjects_during_day_penalty           = 1
+        
         
 class Config:
     def __init__(self):

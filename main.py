@@ -63,6 +63,9 @@ Done:
 
 * __soft_constraint_ban_windows_between_one_subject_during_day
     * Grouping lessons by lessonid during day
+    
+* __soft_constraint_lessons_balanced_during_module_by_timeslots
+    * Grouping by timeslots in selected day every week
 
 * Split groups to bachelors and magistrecy for splitting by timeslots
 * It is possible to set day of week for start or end of module and count of weeks

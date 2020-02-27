@@ -535,7 +535,7 @@ def test_no_lessons_in_saturday():
             assert not global_config.study_days-1 in days
 
 def test_no_lessons_first_timeslot():
-    global_config.soft_constraints.lessons_in_similar_day_and_ts_level_of_solve = 3
+    global_config.soft_constraints.specific_lessons_in_similar_day_and_ts_level_of_solve = 3
     global_config.soft_constraints.last_day_in_week_penalty = 0
     university = University(weeks=4)
     university.add_room(1, 1, RoomType.LECTURE, 10)
@@ -606,4 +606,35 @@ def test_lessons_grouped_by_lesson_id_during_day():
                     else:
                         assert lessons_cache.index(lesson) == len(lessons_cache) -1
 
+def test_lessons_balanced_every_week_every_day():
+    global_config.soft_constraints.specific_lessons_in_similar_day_and_ts_level_of_solve = 3
+    global_config.soft_constraints.timeslots_penalty = [0,0,0,0,0,0,0,0]
+
+    university = University(weeks=3)
+    university.add_room(1, 1, RoomType.LECTURE, 10)
+    university.add_group('Group', 1, GroupType.BACHELOR).ban_time_slots(day=0)
+    university.add_teacher('Teacher').ban_time_slots(day=1).ban_time_slots(day=2)
+    university.add_lesson('Lesson1', ['Group'], 3, RoomType.LECTURE, ['Teacher'])
+    university.add_lesson('Lesson2', ['Group'], 5, RoomType.LECTURE, ['Teacher'])
+    university.add_lesson('Lesson3', ['Group'], 4, RoomType.LECTURE, ['Teacher'])
+    university.add_lesson('Lesson4', ['Group'], 3, RoomType.LECTURE, ['Teacher'])
+
+
+    solver = Solver(university)
+    res, out = solver.solve()
+    open_as_html(out, university)
+
+    for group, weeks in sorted(out.items()):
+        lessons_by_day = {}
+        timeslots_by_day = {}
+        for week, days in sorted(weeks.items()):
+            for day, tss in sorted(days.items()):
+                for ts, data in sorted(tss.items()):
+                    corpus, room, lesson, _type, teacher, other_groups = data
+                    timeslots_by_day.setdefault(day, set()).add(ts)
+                lessons_by_day.setdefault(day, 0)
+                lessons_by_day[day] = max((lessons_by_day[day], len(tss)))
+        for day, count in lessons_by_day.items():
+            ts_values = timeslots_by_day[day]
+            assert count == len(ts_values)
 
