@@ -266,6 +266,27 @@ def _get_room_tracker(function):
         function(self, room_tracker_source=temp, **kwargs)
     return _decorator
 
+###########################################
+
+def _get_lesson_tracker(function):
+    @wraps(function)
+    def _decorator(self, lesson_tracker_source=None, **kwargs):
+        week        = kwargs.get('week_i', r'.*')
+        day         = kwargs.get('day_i', r'.*')
+        lesson_id   = kwargs.get('lesson_i', r'.*')
+        column      = kwargs.get('column', None)
+        ith         = kwargs.get('ith', None)
+
+        indexes = _get_lesson_tracker_by_filter(self.model.variables, week=week, day=day, lesson_id=lesson_id, source=lesson_tracker_source)
+        temp = self.model.variables.get_names(indexes)
+        if column:
+            indexes = eval('_get_lesson_tracker_by_filter(self.model.variables, source=temp, %s=ith)' % column)
+            temp = self.model.variables.get_names(indexes)
+
+        function(self, lesson_tracker_source=temp, **kwargs)
+    return _decorator
+
+
 ###################
 
 
@@ -722,16 +743,16 @@ class Solver:
     
     @_for_week_and_day
     @_get_room_tracker
+    @_get_lesson_tracker
     @_for_groups_or_teachers
     @_get_room_tracker
-    def __soft_constraint_count_of_lessons_more_than_count_of_rooms(self, room_tracker_source = None, column = None, week_i = None, day_i = None, ith=None, **kwargs):
+    @_get_lesson_tracker
+    def __soft_constraint_count_of_lessons_more_than_count_of_rooms(self, room_tracker_source = None, lesson_tracker_source=None, **kwargs):
         if global_config.soft_constraints.minimize_count_of_rooms_per_day_penalty <= 0:
             return
 
         if len(room_tracker_source) == 0:
             return  
-
-        lesson_tracker_source= eval('_get_lesson_tracker_by_filter(self.model.variables, week_i,day_i, %s=ith)' % column)
 
         new_var = list(self.model.variables.add(obj=[global_config.soft_constraints.minimize_count_of_rooms_per_day_penalty],
                                 lb=[0], 
@@ -774,11 +795,14 @@ class Solver:
 
     @_for_week_and_day
     @_get_timeslots
+    @_get_lesson_tracker
     @_for_groups_or_teachers
     @_get_timeslots
+    @_get_lesson_tracker
     @_for_lessons
     @_get_timeslots
-    def __soft_constraint_reduce_ratio_of_lessons_and_subjects(self, source =  None, week_i = None, day_i = None, column= None, ith = None, lesson_i=None, **kwargs):
+    @_get_lesson_tracker
+    def __soft_constraint_reduce_ratio_of_lessons_and_subjects(self, source =  None, lesson_tracker_source= None, **kwargs):
         
         sc = global_config.soft_constraints
         min_count           = sc.min_count_of_specific_lessons_during_day
@@ -793,26 +817,19 @@ class Solver:
         if not min_is_able and not max_is_able:
             return
 
-
-        # each row has cache effect. as a result, it is increase performance... (I hope =))
-        lessons_tracker = self.model.variables.get_names(_get_lesson_tracker_by_filter(self.model.variables, week=week_i))
-        lessons_tracker = self.model.variables.get_names(_get_lesson_tracker_by_filter(self.model.variables, day=day_i, source = lessons_tracker))
-        lessons_tracker = self.model.variables.get_names(_get_lesson_tracker_by_filter(self.model.variables, lesson_id = lesson_i, source = lessons_tracker))
-        lessons_tracker = eval('_get_lesson_tracker_by_filter(self.model.variables, source=lessons_tracker, %s=ith)' % column)
-
         if min_is_able:
             new_var = list(self.model.variables.add(obj=[min_count_penalty],
                                     lb=[0], 
                                     types=[self.model.variables.type.integer]))
 
-            _add_constraint(self.model, source+lessons_tracker + new_var, '>=', 0, [1/min_count]*len(source)+[-1]*len(lessons_tracker)+[1])
+            _add_constraint(self.model, source+lesson_tracker_source + new_var, '>=', 0, [1/min_count]*len(source)+[-1]*len(lesson_tracker_source)+[1])
         
         if max_is_able:
             new_var = list(self.model.variables.add(obj=[max_count_penalty],
                                     lb=[0], 
                                     types=[self.model.variables.type.integer]))
 
-            _add_constraint(self.model, source+lessons_tracker + new_var, '<=', 0, [1/max_count]*len(source)+[-1]*len(lessons_tracker)+[-1])
+            _add_constraint(self.model, source+lesson_tracker_source + new_var, '<=', 0, [1/max_count]*len(source)+[-1]*len(lesson_tracker_source)+[-1])
 
     @_for_week_and_day
     @_get_timeslots
