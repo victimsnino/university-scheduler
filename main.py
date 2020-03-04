@@ -66,6 +66,9 @@ Done:
     
 * __soft_constraint_lessons_balanced_during_module_by_timeslots
     * Grouping by timeslots in selected day every week
+    
+* __soft_constraint_lessons_balanced_during_module_by_rooms
+    * Grouping by rooms in selected day every week 
 
 * Split groups to bachelors and magistrecy for splitting by timeslots
 * It is possible to set day of week for start or end of module and count of weeks

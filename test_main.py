@@ -535,7 +535,7 @@ def test_no_lessons_in_saturday():
             assert not global_config.study_days-1 in days
 
 def test_no_lessons_first_timeslot():
-    global_config.soft_constraints.specific_lessons_in_similar_day_and_ts_level_of_solve = 3
+    global_config.soft_constraints.balanced_constraints.by_lesson_level_of_solve = 3
     global_config.soft_constraints.last_day_in_week_penalty = 0
     university = University(weeks=4)
     university.add_room(1, 1, RoomType.LECTURE, 10)
@@ -607,7 +607,7 @@ def test_lessons_grouped_by_lesson_id_during_day():
                         assert lessons_cache.index(lesson) == len(lessons_cache) -1
 
 def test_lessons_balanced_every_week_every_day():
-    global_config.soft_constraints.specific_lessons_in_similar_day_and_ts_level_of_solve = 3
+    global_config.soft_constraints.balanced_constraints.by_lesson_level_of_solve = 3
     global_config.soft_constraints.timeslots_penalty = [0,0,0,0,0,0,0,0]
 
     university = University(weeks=3)
