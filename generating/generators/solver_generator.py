@@ -7,9 +7,6 @@ from functools import wraps
 import warnings
 import re
 
-
-
-
 timeslots_filter_cache = {}
 
 def _add_constraint(my_model, indexes_or_variables, sense, value, val = None):
@@ -80,99 +77,128 @@ def _calculate_cost_of_lesson_by_position(variable):
     return 1+ts+global_config.time_slots_per_day_available*(day+week*global_config.study_days)
 
 
-#[[[cog
+#[[[cog trackers
 import cog
 import xml.etree.ElementTree as ET
+
+trackers = {}
+
+def add_variable_search(pov):
+    base_name = pov.get('name')
+    prefix_name = base_name+'_prefix'
+    variable_name = base_name+'_i'
+
+    cog.outl("\tsearch += {:<17} + {}".format(prefix_name, pov.get('use_as').format(variable_name)))
+
 data = ET.parse('./xmls/tracker_variables.xml')
 data = data.getroot()
 for variable in data.getchildren():
-
     cog.out('def _get_{0}_by_filter(variables, '.format(variable.get('name')))
-    cog.out(", ".join([pov.get('name')+'_i ='+ pov.get('default') for pov in variable.getchildren()]))
+    cog.out(", ".join([pov.get('name')+'_i ='+ pov.get('default') for pov in variable.findall('.//part')]))
     cog.outl(', source = None):')
-
     cog.outl("\tsearch=r'^'\n")
-    for pov in variable.getchildren():
-        base_name = pov.get('name')
-        prefix_name = base_name+'_prefix'
-        variable_name = base_name+'_i'
 
-        pre_use = pov.get('pre_use', None)
-        if pre_use:
-            cog.outl("\t"+pre_use.format(variable_name))
-            cog.out("\t")
-            
-        cog.outl("\tsearch += {:<17} + {}".format(prefix_name, pov.get('use_as').format(variable_name)))
-        else_usage  = pov.get('else', None)
-        if else_usage:
-            cog.outl("\telse:")
-            cog.outl("\t\tsearch += {}".format(else_usage))
+    arguments = []
+    for pov in variable.getchildren():
+        if pov.tag =='part':
+            arguments.append([pov.get('name')+'_i'])
+            add_variable_search(pov)
+        elif pov.tag == 'variants':
+            arguments.append([pov.get('name'), pov.get('value')])
+            for i, temp_pov in enumerate(pov.getchildren()):
+                if temp_pov.tag == 'part':
+                    base_name = temp_pov.get('name')
+                    variable_name = base_name+'_i'
+                    cog.out('\t')
+                    cog.out('if ' if i == 0 else 'elif ')
+                    cog.outl('not {0} is None:'.format(variable_name))
+                    cog.out('\t')
+                    add_variable_search(temp_pov)
+                else:
+                    cog.outl('\telse:')
+                    cog.outl('\t\tsearch={0}'.format(temp_pov.get('value')))
+
+
+    trackers[variable.get('name')] = arguments
 
     cog.outl("\n\tsearch += r'$'")
     cog.outl("\n\tif 'None' in search:")
     cog.outl("\t\traise Exception('None in search: '+search)")
     cog.outl("\treturn _get_indexes_by_name(variables, search, True, source)\n")
-    # ]]]
+# ]]]
 #[[[end]]]
 
 
 #[[[cog
 import cog
 import xml.etree.ElementTree as ET
+
+decorators = {}
 data = ET.parse('./xmls/decorators.xml')
 data = data.getroot()
 for decorator in data.getchildren():
     cog.outl('def {}(function):'.format(decorator.get('name')))
     cog.outl('    @wraps(function)')
-    cog.outl('    def _decorator(self, {0}**kwargs):'.format("{0}=None,".format(decorator.get('source', 0)) if decorator.get('source', 0) else ""))
+    cog.outl('    def _decorator(self, **kwargs):')
+
     tabs = "        "
     all_vars = []
     for for_code in decorator.findall('./for'):
         vars = [var.get('name') for var in for_code.findall('./variable')]
         all_vars.extend(vars)
 
-        cog.out(tabs)
-        cog.outl('for {0} in {1}:'.format(", ".join(vars), for_code.get('source')))
+        cog.outl(tabs+'for {0} in {1}:'.format(", ".join(vars), for_code.get('source')))
         tabs+='    '
+
         for temp_variable in for_code.findall('./local_variable'):
             cog.outl(tabs+'{0}={1}'.format(temp_variable.get('name'), temp_variable.get('default')))
             all_vars.append(temp_variable.get('name'))
 
-    if decorator.get('source'):
-        for code in decorator.findall('./temp_variable'):
-            cog.out(tabs)
-            cog.outl("{0:<13}= kwargs.get('{0}', {1})".format(code.get('name'), code.get('default')))
-    
-        cog.out('\n'+tabs)
-        cog.out('indexes = {0}(self.model.variables, '.format(decorator.get('function')))
-        var_names = []
-        for code in decorator.findall('./temp_variable'):
-            if code.get('default', None) != 'None':
-                var_names.append(code.get('name'))
-
-        cog.out(', '.join(var+'='+var for var in var_names))
-        cog.outl(", source={0})".format(decorator.get('source')))
-
-        cog.out(tabs)
-        cog.outl('{0} = self.model.variables.get_names(indexes)'.format(decorator.get('source')))
-
-        cog.out(tabs)
-        cog.outl("if column:")
-
-        cog.out('    '+tabs)
-        cog.outl("indexes = eval('{0}(self.model.variables, source={1},  %s=ith)' % column)".format(decorator.get('function'), decorator.get('source')))
-        cog.out('    '+tabs)
-        cog.outl('{0} = self.model.variables.get_names(indexes)\n'.format(decorator.get('source')))
-
-        all_vars.append(decorator.get('source'))
-
-    cog.out(tabs)
-    cog.outl('function(self, {0}, **kwargs)'.format(", ".join("{0}={1}".format(var,var) for var in all_vars)))
+    cog.outl(tabs+'function(self, {0}, **kwargs)'.format(", ".join("{0}={0}".format(var) for var in all_vars)))
     cog.outl('    return _decorator\n')
+    decorators[decorator.get('name')] = all_vars
 
 # ]]]
 #[[[end]]]
 
+#[[[cog
+import cog
+
+for function_name, variables in trackers.items():
+    source_name = function_name+'_source'
+    original_function_name = '_get_'+function_name+'_by_filter'
+    new_function_name = 'get_'+function_name
+
+    cog.outl('def {}(function):'.format(new_function_name))
+    cog.outl('    @wraps(function)')
+    cog.outl('    def _decorator(self, {0}=None, **kwargs):'.format(source_name))
+    tabs = '        '
+    specific_variables = []
+    variants_variables = []
+    for var_variables in variables:
+        for variable in var_variables:
+            cog.outl(tabs+"{0:<15}=kwargs.get('{0}', {1})".format(variable, "r'.*'" if len(var_variables) == 1 else "None"))
+        if len(var_variables) == 1:
+            specific_variables.append(var_variables[0])
+        else:
+            variants_variables.append(var_variables)
+    
+    cog.outl()
+    cog.outl(tabs+'indexes = {0}(self.model.variables, {1}, source={2})'.format(original_function_name, ", ".join([var+'='+var for var in specific_variables]), source_name))
+    cog.outl(tabs+'temp = self.model.variables.get_names(indexes)')
+    cog.outl()
+    for variains in variants_variables:
+        cog.outl(tabs+'if {0}:'.format(variains[0]))
+        cog.outl(tabs+'    '+"indexes = eval('{0}(self.model.variables, %s={2}, source=temp)' % {1})".format(original_function_name, variains[0], variains[1]))
+        cog.outl(tabs+'    '+'temp = self.model.variables.get_names(indexes)')
+    
+    cog.outl()
+    cog.outl(tabs+'function(self, {0}=temp, **kwargs)'.format(source_name))
+    cog.outl('    return _decorator\n')
+    decorators[new_function_name] = [source_name]
+
+# ]]]
+#[[[end]]]
 
 class Solver:
     def __init__(self, university):
@@ -209,25 +235,14 @@ cog.outl('#')
 data = ET.parse('./xmls/methods.xml')
 data = data.getroot()
 
-decorators_data = ET.parse('./xmls/decorators.xml')
-decorators_data = decorators_data.getroot()
-
 for method in data.getchildren():
     tabs = "    "
     input_vars = []
     for decorator_name in method.get('decorators', "").split(' '):
         if len(decorator_name) <= 0:
             continue
-
         cog.outl(tabs+'@{0}'.format(decorator_name))
-        name = "./decorator[@name='{0}']".format(decorator_name)
-        decorator = decorators_data.findall(name)[0]
-        variables = decorator.findall('.//variable') + decorator.findall('.//local_variable')
-        if variables:
-            for var in variables:
-                input_vars.append(var.get('column') if var.get('column', None) else var.get('name'))
-        else:
-            input_vars.append(decorator.get('source'))
+        input_vars.extend(decorators[decorator_name])
     input_vars = np.unique(input_vars)
     cog.outl(tabs+"def {0}(self, {1}, **kwargs):".format(method.get('name'), ", ".join([var+'=None' for var in input_vars])))
     cog.outl(method.find('code').text)

@@ -25,39 +25,39 @@
         </code>
     </method>
 
-    <method name='__fill_dummy_variables_for_tracking_corpuses' decorators='_for_corpuses get_timeslots _for_week_and_day get_timeslots _for_groups_or_teachers get_timeslots'>
-        <code>        self._add_tracker_variable(format_out % ( corpus_i, week_i, day_i, ith), source)</code>
+    <method name='__fill_dummy_variables_for_tracking_corpuses' decorators='_for_corpuses get_time_slot_tracker _for_week_and_day get_time_slot_tracker _for_groups_or_teachers get_time_slot_tracker'>
+        <code>        self._add_tracker_variable(format_out % ( corpus_i, week_i, day_i, ith), time_slot_tracker_source)</code>
     </method>   
 
-    <method name='__fill_dummy_variables_for_tracking_rooms' decorators='_for_rooms get_timeslots _for_week_and_day get_timeslots _for_groups_or_teachers get_timeslots'>
+    <method name='__fill_dummy_variables_for_tracking_rooms' decorators='_for_rooms get_time_slot_tracker _for_week_and_day get_time_slot_tracker _for_groups_or_teachers get_time_slot_tracker'>
         <code><![CDATA[        new_format = room_prefix + "%d" + format_out
-        self._add_tracker_variable(new_format % (room_i, corpus_i, week_i, day_i, ith), source)]]> 
+        self._add_tracker_variable(new_format % (room_i, corpus_i, week_i, day_i, ith), time_slot_tracker_source)]]> 
         </code>
     </method>  
 
-    <method name='__fill_dummy_variables_for_tracking_lessons' decorators='_for_lessons get_timeslots _for_week_and_day get_timeslots _for_groups_or_teachers get_timeslots'>
+    <method name='__fill_dummy_variables_for_tracking_lessons' decorators='_for_lessons get_time_slot_tracker _for_week_and_day get_time_slot_tracker _for_groups_or_teachers get_time_slot_tracker'>
         <code><![CDATA[        new_format = lesson_id_per_day_base_tracker_format + (group_prefix if column == 'group_i' else teacher_prefix) + '%d'
-        self._add_tracker_variable(new_format % (week_i, day_i, lesson.self_index, ith), source)]]> 
+        self._add_tracker_variable(new_format % (week_i, day_i, lesson.self_index, ith), time_slot_tracker_source)]]> 
         </code>
     </method>    
     
-    <method name='__fill_dummy_variables_for_tracking_teachers' decorators='_for_lessons get_timeslots'>
+    <method name='__fill_dummy_variables_for_tracking_teachers' decorators='_for_lessons get_time_slot_tracker'>
         <code><![CDATA[        for teacher_i in lesson.teacher_indexes:
-                self._add_tracker_variable(teachers_per_lesson_format % (lesson.self_index, teacher_i), source, lesson.count)]]></code>
+                self._add_tracker_variable(teachers_per_lesson_format % (lesson.self_index, teacher_i), time_slot_tracker_source, lesson.count)]]></code>
     </method>
-    <method name='__constraint_total_count_of_lessons' decorators='_for_lessons get_timeslots'>
-        <code>        _add_constraint(self.model, source, '==', lesson.count)</code>
+    <method name='__constraint_total_count_of_lessons' decorators='_for_lessons get_time_slot_tracker'>
+        <code>        _add_constraint(self.model, time_slot_tracker_source, '==', lesson.count)</code>
     </method>
-    <method name='__constraint_group_or_teacher_only_in_one_room_per_timeslot' decorators='_for_timeslots get_timeslots _for_week_and_day get_timeslots _for_groups_or_teachers get_timeslots'>
-        <code><![CDATA[        _add_constraint(self.model, source, '<=', 1)]]></code>
+    <method name='__constraint_group_or_teacher_only_in_one_room_per_timeslot' decorators='_for_timeslots get_time_slot_tracker _for_week_and_day get_time_slot_tracker _for_groups_or_teachers get_time_slot_tracker'>
+        <code><![CDATA[        _add_constraint(self.model, time_slot_tracker_source, '<=', 1)]]></code>
     </method>
     <method name='__constraint_ban_changing_corpus_for_groups_or_teachers_during_day' decorators='_for_week_and_day get_corpus_tracker _for_groups_or_teachers get_corpus_tracker'>
         <code><![CDATA[        _add_constraint(self.model, corpus_tracker_source, '<=', 1)]]></code>
     </method>    
-    <method name='__constraint_max_lessons_per_day_for_teachers_or_groups' decorators='_for_week_and_day get_timeslots _for_groups_or_teachers get_timeslots'>
-        <code><![CDATA[        _add_constraint(self.model, source, '<=', global_config.max_lessons_per_day)]]></code>
+    <method name='__constraint_max_lessons_per_day_for_teachers_or_groups' decorators='_for_week_and_day get_time_slot_tracker _for_groups_or_teachers get_time_slot_tracker'>
+        <code><![CDATA[        _add_constraint(self.model, time_slot_tracker_source, '<=', global_config.max_lessons_per_day)]]></code>
     </method>
-    <method name='__constraint_max_lessons_per_week_for_teachers_or_groups' decorators='_for_week_only get_timeslots _for_groups_or_teachers get_timeslots'>
-        <code><![CDATA[        _add_constraint(self.model, source, '<=', global_config.max_lessons_per_week)]]></code>
+    <method name='__constraint_max_lessons_per_week_for_teachers_or_groups' decorators='_for_week_only get_time_slot_tracker _for_groups_or_teachers get_time_slot_tracker'>
+        <code><![CDATA[        _add_constraint(self.model, time_slot_tracker_source, '<=', global_config.max_lessons_per_week)]]></code>
     </method>
 </methods>

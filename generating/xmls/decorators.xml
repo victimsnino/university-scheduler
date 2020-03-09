@@ -51,37 +51,4 @@
             <variable name='lesson' />
         </for>
     </decorator> 
-    <decorator name='get_timeslots' source='source' function='_get_time_slot_tracker_by_filter'>
-        <temp_variable name='week_i' default="r'.*'"/>
-        <temp_variable name='day_i' default="r'.*'"/>
-        <temp_variable name='corpus_i' default="r'.*'"/>
-        <temp_variable name='room_i' default="r'.*'"/>
-        <temp_variable name='timeslot_i' default="r'.*'"/>
-        <temp_variable name='lesson_i' default="r'.*'"/>
-        <temp_variable name='type_i' default="r'.*'"/>
-        <temp_variable name='column' default="None"/>
-        <temp_variable name='ith' default="None"/>
-    </decorator> 
-    <decorator name='get_corpus_tracker' source='corpus_tracker_source' function='_get_corpus_tracker_by_filter'>
-        <temp_variable name='week_i' default="r'.*'"/>
-        <temp_variable name='day_i' default="r'.*'"/>
-        <temp_variable name='corpus_i' default="r'.*'"/>
-        <temp_variable name='column' default="None"/>
-        <temp_variable name='ith' default="None"/>
-    </decorator>     
-    <decorator name='get_room_tracker' source='room_tracker_source' function='_get_room_tracker_by_filter'>
-        <temp_variable name='room_i' default="r'.*'"/>
-        <temp_variable name='week_i' default="r'.*'"/>
-        <temp_variable name='day_i' default="r'.*'"/>
-        <temp_variable name='corpus_i' default="r'.*'"/>
-        <temp_variable name='column' default="None"/>
-        <temp_variable name='ith' default="None"/>
-    </decorator>     
-    <decorator name='get_lesson_tracker' source='lesson_tracker_source' function='get_lesson_tracker_by_filter'>
-        <temp_variable name='week_i' default="r'.*'"/>
-        <temp_variable name='day_i' default="r'.*'"/>
-        <temp_variable name='lesson_i' default="r'.*'"/>
-        <temp_variable name='column' default="None"/>
-        <temp_variable name='ith' default="None"/>
-    </decorator> 
 </decorators>
