@@ -1,0 +1,39 @@
+<tracker_variables>
+    <variable name='time_slot_tracker'>
+        <part name='week'       use_as='str({0})' default="r'.*'" />
+        <part name='day'        use_as='str({0})' default="r'.*'" />
+        <part name='corpus'     use_as='str({0})' default="r'.*'" />
+        <part name='room'       use_as='str({0})' default="r'.*'" />
+        <part name='timeslot'   use_as='str({0})' default="r'.*'" />
+        <part name='lesson'     use_as='str({0})' default="r'.*'" />
+        <part name='group'      use_as="r'\[.*,? ?' + str({0})+ r',? ?.*\]'" default="r'.*'" />
+        <part name='type'       use_as='str({0})' default="r'.*'" />
+        <part name='teacher'    use_as='str({0})' default="r'.*'" />
+    </variable>
+    <variable name='corpus_tracker'>
+        <part name='corpus'     use_as='str({0})' default="r'.*'" />
+        <part name='week'       use_as='str({0})' default="r'.*'" />
+        <part name='day'        use_as='str({0})' default="r'.*'" />
+        <part name='group'      use_as='str({0})' pre_use = 'if not {0} is None:' default="None" />
+        <part name='teacher'    use_as='str({0})' pre_use = 'elif not {0} is None:' default="None" else="'_.*'"/>
+    </variable>
+    <variable name='room_tracker'>
+        <part name='room'       use_as='str({0})' default="r'.*'" />
+        <part name='corpus'     use_as='str({0})' default="r'.*'" />
+        <part name='week'       use_as='str({0})' default="r'.*'" />
+        <part name='day'        use_as='str({0})' default="r'.*'" />
+        <part name='group'      use_as='str({0})' pre_use = 'if not {0} is None:' default="None" />
+        <part name='teacher'    use_as='str({0})' pre_use = 'elif not {0} is None:' default="None" else="'_.*'"/>
+    </variable>
+    <variable name='lesson_id_per_day_tracker'>
+        <part name='week'       use_as='str({0})' default="r'.*'" />
+        <part name='day'        use_as='str({0})' default="r'.*'" />
+        <part name='lesson'     use_as='str({0})' default="r'.*'" />
+        <part name='group'      use_as='str({0})' pre_use = 'if not {0} is None:' default="None" />
+        <part name='teacher'    use_as='str({0})' pre_use = 'elif not {0} is None:' default="None" else="'_.*'"/>
+    </variable>
+    <variable name='teacher_per_lesson_tracker'>
+        <part name='lesson'     use_as='str({0})' default="r'.*'" />
+        <part name='teacher'    use_as='str({0})' default="r'.*'" />
+    </variable> 
+</tracker_variables>
