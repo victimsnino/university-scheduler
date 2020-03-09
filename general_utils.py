@@ -117,7 +117,7 @@ lesson_id_per_day_for_teacher_tracker_format =  lesson_id_per_day_base_tracker_f
                                                 teacher_prefix  +   "%d"
 
 
-teachers_per_lesson_format  =   lesson_prefix   + "%s"  +\
+teachers_per_lesson_format  =   lesson_prefix   + "%d"  +\
                                 teacher_prefix  + "%d"
 
 

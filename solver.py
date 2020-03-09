@@ -418,7 +418,7 @@ class Solver:
                                                                 lb=[0], 
                                                                 ub=[1],
                                                                 types=[self.model.variables.type.binary],
-                                                                names=[teachers_per_lesson_format % (lesson.full_name(), teacher_i)])[0]]
+                                                                names=[teachers_per_lesson_format % (lesson.self_index, teacher_i)])[0]]
 
 
             lections_indexes = _get_indexes_of_timeslots_by_filter(self.model.variables, source=source, teacher_id=teacher_i)
@@ -580,7 +580,7 @@ class Solver:
         for lesson in self.university.lessons:
             indexes = []
             for teacher_i in lesson.teacher_indexes:
-                indexes += _get_indexes_by_name(self.model.variables, teachers_per_lesson_format % (lesson.full_name(), teacher_i))
+                indexes += _get_indexes_by_name(self.model.variables, teachers_per_lesson_format % (lesson.self_index, teacher_i))
 
             _add_constraint(self.model, indexes, '<=', 1)
 

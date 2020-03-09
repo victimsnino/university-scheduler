@@ -30,7 +30,8 @@
             <variable name='corpus_i' />
         </for>        
         <for source='self.university.corpuses[corpus_i]'>
-            <variable name='room' column = 'room_i' use_as='room.room_number'/>
+            <variable name='room'/>
+            <local_variable name='room_i' default='room.room_number'/>
         </for>
     </decorator>
     <decorator name='_for_groups_or_teachers'>
