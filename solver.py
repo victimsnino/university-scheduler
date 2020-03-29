@@ -297,7 +297,8 @@ class Solver:
         self.model.objective.set_sense(self.model.objective.sense.minimize)
         #self.model.parameters.mip.strategy.search.set(1)
         self.model.parameters.simplex.limits.lowerobj.set(0)
-        self.model.parameters.timelimit.set(global_config.timelimit_for_solve)
+        if global_config.timelimit_for_solve > 0:
+            self.model.parameters.timelimit.set(global_config.timelimit_for_solve)
         
         global timeslots_filter_cache
         timeslots_filter_cache.clear()
@@ -332,6 +333,20 @@ class Solver:
                         if len(indexes) != 0:
                             _add_constraint(self.model, indexes, '<=', 1)
 
+
+    def __fill_variables_helper(self, name, source, max_limit):
+        tracker_index  = [self.model.variables.add(obj=[0],
+                                                    lb=[0], 
+                                                    ub=[1],
+                                                    types=[self.model.variables.type.binary],
+                                                    names=[name])[0]]
+
+        _add_constraint(self.model, source + tracker_index, '<=', 0, 
+                        [1]*len(source)+[-1*max_limit])
+
+        _add_constraint(self.model, source + tracker_index, '>=', -1*(max_limit-1), 
+                        [1]*len(source)+[-1*max_limit])
+
     @_for_corpuses
     @get_timeslots
     @_for_week_and_day
@@ -342,19 +357,7 @@ class Solver:
         ''' 
         Add dummy variables for corpus tracking (Group or teacher has lection in i-th corpus)
         '''
-        corpus_tracker_index = [self.model.variables.add(obj=[0],
-                                                        lb=[0], 
-                                                        ub=[1],
-                                                        types=[self.model.variables.type.binary],
-                                                        names=[format_out % ( corpus_i, week_i, day_i, ith)])[0]]
-
-        lections_indexes = source
-
-        _add_constraint(self.model, lections_indexes + corpus_tracker_index, '<=', 0, 
-                        [1]*len(lections_indexes)+[-1*global_config.time_slots_per_day_available])
-
-        _add_constraint(self.model, lections_indexes + corpus_tracker_index, '>=', -1*(global_config.time_slots_per_day_available-1), 
-                        [1]*len(lections_indexes)+[-1*global_config.time_slots_per_day_available])
+        self.__fill_variables_helper(format_out % ( corpus_i, week_i, day_i, ith), source, global_config.time_slots_per_day_available)
 
     
     @_for_rooms
@@ -368,18 +371,7 @@ class Solver:
         Add dummy variables for corpus tracking (Group or teacher has lection in i-th corpus)
         '''
         new_format = room_prefix + "%d" + format_out
-        room_tracker_index = [self.model.variables.add(obj=[0],
-                                                        lb=[0], 
-                                                        ub=[1],
-                                                        types=[self.model.variables.type.binary],
-                                                        names=[new_format % (room_i, corpus_i, week_i, day_i, ith)])[0]]
-
-        lections_indexes = source
-        _add_constraint(self.model, lections_indexes + room_tracker_index, '<=', 0, 
-                        [1]*len(lections_indexes)+[-1*global_config.time_slots_per_day_available])
-
-        _add_constraint(self.model, lections_indexes + room_tracker_index, '>=', -1*(global_config.time_slots_per_day_available-1), 
-                        [1]*len(lections_indexes)+[-1*global_config.time_slots_per_day_available])
+        self.__fill_variables_helper(new_format % (room_i, corpus_i, week_i, day_i, ith), source, global_config.time_slots_per_day_available)
 
     
     @_for_lessons
@@ -393,18 +385,7 @@ class Solver:
         Add dummy variables for corpus tracking (Group or teacher has lection in i-th corpus)
         '''
         new_format = lesson_id_per_day_base_tracker_format + (group_prefix if column == 'group_id' else teacher_prefix) + '%d'
-        lesson_tracker_index = [self.model.variables.add(obj=[0],
-                                                        lb=[0], 
-                                                        ub=[1],
-                                                        types=[self.model.variables.type.binary],
-                                                        names=[new_format % (week_i, day_i, lesson.self_index, ith)])[0]]
-
-        lections_indexes = source
-        _add_constraint(self.model, lections_indexes + lesson_tracker_index, '<=', 0, 
-                        [1]*len(lections_indexes)+[-1*global_config.time_slots_per_day_available])
-
-        _add_constraint(self.model, lections_indexes + lesson_tracker_index, '>=', -1*(global_config.time_slots_per_day_available-1), 
-                        [1]*len(lections_indexes)+[-1*global_config.time_slots_per_day_available])
+        self.__fill_variables_helper(new_format % (week_i, day_i, lesson.self_index, ith), source, global_config.time_slots_per_day_available)
 
 
     @_for_lessons
@@ -414,20 +395,8 @@ class Solver:
         Add dummy variables for teachers tracking (which teachers marked for current lesson during module)
         '''
         for teacher_i in lesson.teacher_indexes:
-            teacher_tracker_index = [self.model.variables.add(obj=[0],
-                                                                lb=[0], 
-                                                                ub=[1],
-                                                                types=[self.model.variables.type.binary],
-                                                                names=[teachers_per_lesson_format % (lesson.self_index, teacher_i)])[0]]
-
-
             lections_indexes = _get_indexes_of_timeslots_by_filter(self.model.variables, source=source, teacher_id=teacher_i)
-
-            _add_constraint(self.model, lections_indexes + teacher_tracker_index, '<=', 0, 
-                            [1]*len(lections_indexes)+[-1*lesson.count])
-
-            _add_constraint(self.model, lections_indexes + teacher_tracker_index, '>=', -1*(lesson.count-1), 
-                            [1]*len(lections_indexes)+[-1*lesson.count])
+            self.__fill_variables_helper(teachers_per_lesson_format % (lesson.self_index, teacher_i), lections_indexes, lesson.count)
 
     @_for_lessons
     @get_timeslots
@@ -479,37 +448,42 @@ class Solver:
         Some lessons should be after some another. \n
         For example, practice should be after lection. Therefore we should track it.
         '''
+        def get_sorted_indexes_and_costs(self, lesson_i):
+            original_indexes = _get_indexes_of_timeslots_by_filter(self.model.variables, lesson=str(lesson_i))
+            original_indexes = sorted(original_indexes, key=lambda index: _calculate_cost_of_lesson_by_position(self.model.variables.get_names(index)))
+            original_costs   = [_calculate_cost_of_lesson_by_position(self.model.variables.get_names(i)) for i in original_indexes]
+            return original_indexes, original_costs
+
+        def fill_at_any_moment_lections_ge_practices(self, original_costs, after_costs, original_indexes, should_be_after_indexes):
+            def get_greater_index(costs, cost):
+                index = 0
+                while index < len(costs):
+                    if costs[index] > cost:
+                        break
+                    index += 1
+                return index
+
+            set_after_costs = sorted(list(set(after_costs)))
+            for cost in set_after_costs:
+                after_till_index    = get_greater_index(after_costs, cost)
+                original_till_index = get_greater_index(original_costs, cost)
+                
+                _add_constraint(self.model, should_be_after_indexes[:after_till_index]+original_indexes[:original_till_index], '>=', 0,
+                                [float(lesson.count/should_be_after_this.count)]*after_till_index+[-1]*original_till_index)
+
         # practice
         for lesson_i, lesson in enumerate(self.university.lessons):
             if len(lesson.should_be_after) == 0:
                 continue
 
-            original_indexes = _get_indexes_of_timeslots_by_filter(self.model.variables, lesson=str(lesson_i))
-            original_indexes = sorted(original_indexes, key=lambda index: _calculate_cost_of_lesson_by_position(self.model.variables.get_names(index)))
-            original_costs   = [_calculate_cost_of_lesson_by_position(self.model.variables.get_names(i)) for i in original_indexes]
+            original_indexes, original_costs = get_sorted_indexes_and_costs(self, lesson_i)
 
             # lection
             for index_after in lesson.should_be_after:
                 should_be_after_this = self.university.lessons[index_after]
-                should_be_after_indexes = _get_indexes_of_timeslots_by_filter(self.model.variables, lesson=str(should_be_after_this.self_index))
-                should_be_after_indexes = sorted(should_be_after_indexes, key=lambda index: _calculate_cost_of_lesson_by_position(self.model.variables.get_names(index)))
-                after_costs   = [_calculate_cost_of_lesson_by_position(self.model.variables.get_names(i)) for i in should_be_after_indexes]
-                set_after_costs = sorted(list(set(after_costs)))
-                for cost in set_after_costs:
-                    after_till_index = 0
-                    while after_till_index < len(after_costs):
-                        if after_costs[after_till_index] > cost:
-                            break
-                        after_till_index += 1
+                should_be_after_indexes, after_costs = get_sorted_indexes_and_costs(self, should_be_after_this.self_index)
 
-                    original_till_index = 0
-                    while original_till_index < len(original_costs):
-                        if original_costs[original_till_index] > cost:
-                            break
-                        original_till_index += 1
-                    
-                    _add_constraint(self.model, should_be_after_indexes[:after_till_index]+original_indexes[:original_till_index], '>=', 0,
-                                    [float(lesson.count/should_be_after_this.count)]*after_till_index+[-1]*original_till_index)
+                fill_at_any_moment_lections_ge_practices(self, original_costs, after_costs, original_indexes, should_be_after_indexes)
 
     @_for_groups_or_teachers
     @get_timeslots
@@ -635,6 +609,7 @@ class Solver:
     
     def __balance_timeslots_in_current_day_every_week(self, source, level_of_solve, base_penalty, multiple_for_similar_type, banned_weeks_only, lesson = None):
         ts_by_weeks = {}
+
         @_for_week_only
         @get_timeslots
         def get_timeslots_for_week(self, source=None, week_i=None,  **kwargs):
@@ -954,7 +929,7 @@ class Solver:
 
     def __parse_output_and_create_schedule(self):
         print("Solution status = ",     self.model.solution.get_status(), ":", self.model.solution.status[self.model.solution.get_status()])
-        if self.model.solution.get_status() in [1, 101, 107]:
+        if self.model.solution.get_status() in [1, 101, 107, 113]:
             print("Value: ", self.model.solution.get_objective_value())
         else:
             return None

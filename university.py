@@ -165,7 +165,10 @@ class University:
         Teachers - list of compatible teachers for this lesson.
         '''
         if type(count) is float:
-            raise Exception("You can't pass {0} as count of lessons!".format(count))
+            int_v = int(count)
+            if int_v != count:
+                raise Exception("You can't pass {0} as count of lessons!".format(count))
+        count = int(count)
         group_indexes = []
         for group_i in range(len(self.groups)):
             if self.groups[group_i].group_name in group_names:
