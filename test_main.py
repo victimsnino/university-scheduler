@@ -356,7 +356,7 @@ def test_lessons_in_similar_day_and_ts_during_module():
 
     university.add_teacher('Бычков И С')
     university.add_teacher('Чистяков В В')
-    university.add_lesson("прога", ['16-pmi'], 20, RoomType.LECTURE,  ['Бычков И С'])
+    university.add_lesson("прога", ['16-pmi'], 24, RoomType.LECTURE,  ['Бычков И С'])
     university.add_lesson("матан", ['16-pmi'], 8, RoomType.LECTURE,  ['Чистяков В В'])
 
     solver = Solver(university)
@@ -373,8 +373,8 @@ def test_lessons_in_similar_day_and_ts_during_module():
                     corpus, room, lesson, _type, teacher, other_groups = data
                     ts_by_weeks_days_and_lessons.setdefault(week, {}).setdefault(day, {}).setdefault(lesson, []).append(ts)
 
-        for i in range(len(ts_by_weeks_days_and_lessons)-1):
-            assert ts_by_weeks_days_and_lessons[i] == ts_by_weeks_days_and_lessons[i+1]
+        for i in range(len(ts_by_weeks_days_and_lessons)-2):
+            assert ts_by_weeks_days_and_lessons[i] == ts_by_weeks_days_and_lessons[i+2]
 
 def test_similar_room_every_week():
     university = University(weeks=4)
@@ -453,7 +453,7 @@ def test_full_module_for_two_groups():
 
 def test_full_module_for_second_course():
     #global_config.soft_constraints.minimize_count_of_rooms_per_day_penalty = 0
-    global_config.timelimit_for_solve = 0
+    #global_config.timelimit_for_solve = 0
     weeks = 2
     university = University(weeks=weeks)
 
@@ -480,24 +480,26 @@ def test_full_module_for_second_course():
     university.add_teacher('Калягин')
     university.add_teacher('Асеева')
 
-    university.add_lesson('Алгоритмы и структуры данных', ['17bi-1'], weeks, RoomType.PRACTICE, ['Демкин'])
-    university.add_lesson('Алгоритмы и структуры данных', ['17bi-2'], weeks, RoomType.PRACTICE, ['Демкин'])
-    university.add_lesson('Алгоритмы и структуры данных', ['17bi-1', '17bi-2'], weeks, RoomType.LECTURE, ['Демкин'])
+    lect = university.add_lesson('Алгоритмы и структуры данных', ['17bi-1', '17bi-2'], weeks, RoomType.LECTURE, ['Демкин'])
+    university.add_lesson('Алгоритмы и структуры данных', ['17bi-1'], weeks, RoomType.PRACTICE, ['Демкин']).should_be_after_lessons(lect)
+    university.add_lesson('Алгоритмы и структуры данных', ['17bi-2'], weeks, RoomType.PRACTICE, ['Демкин']).should_be_after_lessons(lect)
 
-    university.add_lesson('Объектно -ориентированное программирование', ['17bi-1'], weeks/2, RoomType.PRACTICE, ['Демкин'])
-    university.add_lesson('Объектно -ориентированное программирование', ['17bi-2'], weeks/2, RoomType.PRACTICE, ['Демкин'])
-    university.add_lesson('Объектно -ориентированное программирование', ['17bi-1', '17bi-2'], weeks/2, RoomType.LECTURE, ['Демкин'])
+    lect = university.add_lesson('Объектно -ориентированное программирование', ['17bi-1', '17bi-2'], weeks/2, RoomType.LECTURE, ['Демкин'])
+    university.add_lesson('Объектно -ориентированное программирование', ['17bi-1'], weeks/2, RoomType.PRACTICE, ['Демкин']).should_be_after_lessons(lect)
+    university.add_lesson('Объектно -ориентированное программирование', ['17bi-2'], weeks/2, RoomType.PRACTICE, ['Демкин']).should_be_after_lessons(lect)
+
 
     university.add_lesson('Теория вероятностей', ['17bi-1'], weeks, RoomType.PRACTICE, ['Семенов'])
     university.add_lesson('Теория вероятностей', ['17bi-2'], weeks, RoomType.PRACTICE, ['Семенов'])
 
-    university.add_lesson('Моделирование процессов и систем', ['17bi-1'], weeks, RoomType.PRACTICE, ['Куранова'])
-    university.add_lesson('Моделирование процессов и систем', ['17bi-2'], weeks, RoomType.PRACTICE, ['Куранова'])
-    university.add_lesson('Моделирование процессов и систем', ['17bi-1', '17bi-2'], weeks, RoomType.LECTURE, ['Асеева'])
+    lect = university.add_lesson('Моделирование процессов и систем', ['17bi-1', '17bi-2'], weeks, RoomType.LECTURE, ['Асеева'])
+    university.add_lesson('Моделирование процессов и систем', ['17bi-1'], weeks, RoomType.PRACTICE, ['Куранова']).should_be_after_lessons(lect)
+    university.add_lesson('Моделирование процессов и систем', ['17bi-2'], weeks, RoomType.PRACTICE, ['Куранова']).should_be_after_lessons(lect)
+
     university.add_lesson('Теория вероятности', ['17bi-1', '17bi-2'], weeks, RoomType.LECTURE, ['Колданов'])
 
-    university.add_lesson('Анализ данных', ['17bi-1'], weeks, RoomType.PRACTICE, ['Казаков'])
-    university.add_lesson('Анализ данных', ['17bi-1', '17bi-2'], weeks, RoomType.LECTURE, ['Калягин'])
+    lect = university.add_lesson('Анализ данных', ['17bi-1', '17bi-2'], weeks, RoomType.LECTURE, ['Калягин'])
+    university.add_lesson('Анализ данных', ['17bi-1'], weeks, RoomType.PRACTICE, ['Казаков']).should_be_after_lessons(lect)
 
     university.add_lesson('Английский язык', ['17bi-1', '17bi-2'], 2*weeks, RoomType.LECTURE, ['Фролова'])
 

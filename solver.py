@@ -6,6 +6,8 @@ import copy
 import progressbar
 from functools import wraps
 import warnings
+import numpy as np
+import math
 
 
 timeslots_filter_cache = {}
@@ -27,7 +29,18 @@ def _add_constraint(my_model, indexes_or_variables, sense, value, val = None):
     my_model.linear_constraints.add(lin_expr = [cplex.SparsePair(ind = indexes_or_variables, 
                                                                  val = val)], 
                                     senses = senses[valid_operations.index(sense)],
-                                    rhs = [value])
+                                    rhs = [value])                                 
+
+def _add_soft_constraint(my_model, indexes_or_variables, sense, value, vals, penalty, val_for_new_variable, name=None, ub = None):
+    if penalty > 0: # A.K.A soft constraint
+        indexes_or_variables.append(my_model.variables.add(   obj=[penalty],
+                                                        lb=[0],
+                                                        ub =[ub] if ub else None,
+                                                        names=[name] if name else None,
+                                                        types=[my_model.variables.type.integer])[0])
+        vals.append(val_for_new_variable)
+
+    _add_constraint(my_model, indexes_or_variables, sense, value, vals)
 
 def _get_indexes_by_name(variables, search, is_just_regex = False, source = None):
     if is_just_regex == False:
@@ -522,15 +535,7 @@ class Solver:
                     val += [v]*len(indexes_by_ts[ts])
                     temp_indexes += indexes_by_ts[ts]
 
-                if penalty > 0: # A.K.A soft constraint
-                    obj = penalty*(max_timeslots-2)
-                    temp_indexes.append(self.model.variables.add(   obj=[obj],
-                                                                    lb=[0], 
-                                                                    ub=[1],
-                                                                    types=[self.model.variables.type.binary])[0])
-                    val.append(-2)
-
-                _add_constraint(self.model, temp_indexes, '<=', 1, val)
+                _add_soft_constraint(self.model, temp_indexes, '<=', 1, val, penalty*(penalty>0)*(max_timeslots-2), -1, 'Ban_windows', 1)
 
     @_for_week_and_day
     @get_timeslots
@@ -569,23 +574,23 @@ class Solver:
             return
 
         for excess_lessons_per_day in range(global_config.soft_constraints.max_lessons_per_day, global_config.time_slots_per_day_available):
-            excess_var = [self.model.variables.add( obj=[excess_lessons_per_day*global_config.soft_constraints.max_lessons_per_day_penalty],
-                                                    lb=[0], 
-                                                    ub=[global_config.time_slots_per_day_available],
-                                                    types=[self.model.variables.type.integer])[0]]
-
-            _add_constraint(self.model, source+excess_var, '<=', excess_lessons_per_day, [1]*len(source)+[-1])
+            vals = [1]*len(source)
+            penalty = excess_lessons_per_day*global_config.soft_constraints.max_lessons_per_day_penalty
+            _add_soft_constraint(self.model, copy.deepcopy(source), '<=', excess_lessons_per_day, vals, penalty, -1, "MaxLessons", ub=global_config.time_slots_per_day_available)
 
     @_for_week_and_day
     @get_timeslots
     @_for_groups_or_teachers
     @get_timeslots
-    def __soft_constraint_min_lessons_per_day(self, source=None, **kwargs):
+    def __soft_constraint_min_lessons_per_day(self, source=None, teacher_or_group=None, **kwargs):
         if  global_config.soft_constraints.min_lessons_per_day_penalty <= 0 or \
             global_config.soft_constraints.min_lessons_per_day <= 0 or  \
             global_config.soft_constraints.min_lessons_per_day >= global_config.time_slots_per_day_available:
             return
         min_lessons = global_config.soft_constraints.min_lessons_per_day
+
+        if teacher_or_group.count_of_lessons/(self.university.study_weeks/2) < min_lessons:
+            return
 
         vars = []
         indicies = []
@@ -600,14 +605,75 @@ class Solver:
             vars.append(self.model.variables.add( obj=[penalty],
                                                     lb=[0], 
                                                     ub=[1],
-                                                    types=[self.model.variables.type.binary])[0])
+                                                    types=[self.model.variables.type.binary],
+                                                    names=['MinLessons'+str(teacher_or_group)])[0])
             indicies.append(index)
             penalties.append(penalty)
 
         _add_constraint(self.model, source + vars, '==', min_lessons, [1]*len(source)+indicies)
         _add_constraint(self.model, vars, '==', 1)
     
-    def __balance_timeslots_in_current_day_every_week(self, source, level_of_solve, base_penalty, multiple_for_similar_type, banned_weeks_only, lesson = None):
+    
+    def __balance_timeslots_in_current_day_every_week(self, source, similar_type_only, base_penalty, multiple_for_similar_type, banned_weeks_only, lesson = None, name= ""):
+        ts_by_weeks = {}
+
+        @_for_week_only
+        @get_timeslots
+        def get_timeslots_for_week(self, source=None, week_i=None,  **kwargs):
+            ts_by_weeks.setdefault(week_i, []).extend(source)
+        
+        get_timeslots_for_week(self, source=source)
+
+        up_down_weeks = [[],[]]
+        active_weeks = [0,0]
+        for div in range(0, 1+1):
+            for week_i in range(self.university.study_weeks):
+                if week_i % 2 == div:
+                    continue
+
+                if week_i in banned_weeks_only:
+                    continue
+
+                wi = ts_by_weeks[week_i]
+                if len(wi) == 0:
+                    continue
+
+                up_down_weeks[div].extend(wi)
+                active_weeks[div] += 1
+            
+            if active_weeks[div] <= 1:
+                continue
+            
+            dummy_var = self.model.variables.add(obj=[0],
+                                                lb=[0],
+                                                ub=[1],
+                                                types=[self.model.variables.type.binary])[0]
+
+            temp_weeks = up_down_weeks[div] + [ dummy_var]
+
+            penalty = base_penalty*multiple_for_similar_type
+            weeks = copy.deepcopy(active_weeks[div])
+
+            _add_soft_constraint(self.model, temp_weeks, '==', weeks, [1]*(len(temp_weeks)-1) + [weeks], penalty, 1, name + " div " + str(div))
+
+        if similar_type_only:
+            return
+
+        dummy_vars = list(self.model.variables.add(obj=[0.0001, 0],
+                                            lb=[0]*2,
+                                            ub=[1]*2,
+                                            types=[self.model.variables.type.binary]*2,
+                                            names=["dummy " + name]*2))
+
+        temp_weeks = up_down_weeks[0]+up_down_weeks[1] + dummy_vars
+        weeks = active_weeks[0]+active_weeks[1]
+        vals = [1]*(len(temp_weeks)-2) + [int(np.min(active_weeks)), weeks]
+
+        _add_soft_constraint(self.model, temp_weeks, '==', weeks, vals, base_penalty, 1, name + " general")
+
+
+
+    def __legacy_balance_timeslots_in_current_day_every_week(self, source, level_of_solve, base_penalty, multiple_for_similar_type, banned_weeks_only, lesson = None, name= ""):
         ts_by_weeks = {}
 
         @_for_week_only
@@ -634,7 +700,8 @@ class Solver:
                 temp_variables = list(self.model.variables.add( obj=[penalty]*2,
                                                                 lb=[0]*2, 
                                                                 ub=[1]*2,
-                                                                types=[self.model.variables.type.binary]*2))
+                                                                types=[self.model.variables.type.binary]*2,
+                                                                names=['Balance + ' + name]*2))
 
                 indexes += temp_variables
                 values += [1,-1]
@@ -689,6 +756,9 @@ class Solver:
         if global_config.soft_constraints.balanced_constraints.by_lesson_penalty <= 0 or self.university.study_weeks <= 1:
             return
 
+        if lesson.count == 1:
+            return
+
         if lesson.count < self.university.study_weeks/2:
             print("Lesson {0} can be potential reason for slowing of solving (count of lessons lower, than count of weeks/2.".format(lesson))
 
@@ -708,12 +778,14 @@ class Solver:
                 elif not day is None and day == day_i:
                     return
 
+        lessons_per_day = global_config.soft_constraints.min_count_of_specific_lessons_during_day
         self.__balance_timeslots_in_current_day_every_week( source, 
-                                                            global_config.soft_constraints.balanced_constraints.by_lesson_level_of_solve, 
+                                                            lesson.count/(self.university.study_weeks/2) <= lessons_per_day, #global_config.soft_constraints.balanced_constraints.by_lesson_level_of_solve, 
                                                             global_config.soft_constraints.balanced_constraints.by_lesson_penalty,
                                                             global_config.soft_constraints.similar_week_multiply,
                                                             banned_weeks_only,
-                                                            lesson)
+                                                            lesson,
+                                                            "LessDurModule "+ str(lesson))
 
     
     @_for_week_and_day
@@ -729,12 +801,10 @@ class Solver:
         if len(room_tracker_source) == 0:
             return  
 
-        new_var = list(self.model.variables.add(obj=[global_config.soft_constraints.minimize_count_of_rooms_per_day_penalty],
-                                lb=[0], 
-                                types=[self.model.variables.type.integer]))
-
-        _add_constraint(self.model, lesson_tracker_source+room_tracker_source+new_var, '>=', 0, [1]*len(lesson_tracker_source)+[-1]*len(room_tracker_source)+[1])
-
+        vals = [1]*len(lesson_tracker_source)+[-1]*len(room_tracker_source)
+        penalty = global_config.soft_constraints.minimize_count_of_rooms_per_day_penalty
+        _add_soft_constraint(self.model, lesson_tracker_source+room_tracker_source, '>=', 0, vals, penalty, 1, "CountOfLessonsGERomms")
+   
     def __soft_constraint_last_day_in_week(self):
         if len(self.university.lessons) == 0:
             return
@@ -742,14 +812,57 @@ class Solver:
         if global_config.soft_constraints.last_day_in_week_penalty <= 0 or global_config.study_days <= 1:
             return
 
-        new_var = list(self.model.variables.add(obj=[global_config.soft_constraints.last_day_in_week_penalty],
-                            lb=[0], 
-                            types=[self.model.variables.type.integer]))
         indexes = _get_indexes_of_timeslots_by_filter(self.model.variables, day=global_config.study_days-1)
+        _add_soft_constraint(self.model, copy.deepcopy(indexes), '==', 0, [1]*len(indexes), global_config.soft_constraints.last_day_in_week_penalty, -1, "LastDay")
+    
+    @_for_groups_or_teachers
+    @get_timeslots
+    def __soft_constraint_first_or_last_timeslot_in_day(self, source=None, teacher_or_group = None, column=None, **kwargs):
+        if len(self.university.lessons) == 0:
+            return
+        
+        #todo
+        if column == "teacher_id":
+            return
 
-        _add_constraint(self.model, indexes+new_var, '==', 0, [1]*len(indexes)+[-1])
+        if teacher_or_group.group_type == GroupType.MAGISTRACY:
+            return
 
-    def __soft_constraint_first_or_last_timeslot_in_day(self):
+        def get_personal_penalties(teacher_or_group):
+            def get_count_of_unbanned_ts(penalties):
+                return np.sum(penalties == 0)
+
+            def is_stop_condition(personal_penalties, lessons_per_day):
+                return get_count_of_unbanned_ts(personal_penalties) >= lessons_per_day or np.sum(personal_penalties <= 0) == len(personal_penalties)
+
+            def get_index_of_minimal_non_zero(personal_penalties):
+                index = 0
+                for ind, temp in enumerate(personal_penalties):
+                    if temp > 0 and temp <= personal_penalties[index]:
+                        index = ind
+                return index
+
+            personal_penalties = np.array(copy.deepcopy(global_config.soft_constraints.timeslots_penalty))
+            lessons_per_day = math.ceil(teacher_or_group.count_of_lessons/self.university.study_weeks/global_config.study_days)
+
+            while not is_stop_condition(personal_penalties, lessons_per_day):
+                personal_penalties[get_index_of_minimal_non_zero(personal_penalties)] = 0
+                print("Removed index " + str(teacher_or_group))
+            return personal_penalties
+
+        personal_penalties = get_personal_penalties(teacher_or_group)
+
+        def add_constraint_for_timeslot(timeslot, penalty):
+            if penalty <= 0:
+                return
+
+            indexes = _get_indexes_of_timeslots_by_filter(self.model.variables, timeslot=timeslot)
+            _add_soft_constraint(self.model, copy.deepcopy(indexes), '==', 0, [1]*len(indexes), penalty, -1, "LastTSinDay " + str(timeslot) + " " + str(teacher_or_group))
+
+        for ts, penalty in enumerate(personal_penalties):
+            add_constraint_for_timeslot(ts, penalty)
+
+    def __legacy_soft_constraint_first_or_last_timeslot_in_day(self):
         if len(self.university.lessons) == 0:
             return
 
@@ -757,13 +870,8 @@ class Solver:
             if penalty <= 0:
                 return
 
-            new_var = list(self.model.variables.add(obj=[penalty],
-                                lb=[0], 
-                                types=[self.model.variables.type.integer]))
-
             indexes = _get_indexes_of_timeslots_by_filter(self.model.variables, timeslot=timeslot)
-
-            _add_constraint(self.model, indexes+new_var, '==', 0, [1]*len(indexes)+[-1])
+            _add_soft_constraint(self.model, copy.deepcopy(indexes), '==', 0, [1]*len(indexes), penalty, -1, "LastTSinDay")
 
         for ts, penalty in enumerate(global_config.soft_constraints.timeslots_penalty):
             add_constraint_for_timeslot(ts, penalty)
@@ -777,7 +885,7 @@ class Solver:
     @_for_lessons
     @get_timeslots
     @get_lesson_tracker
-    def __soft_constraint_reduce_ratio_of_lessons_and_subjects(self, source =  None, lesson_tracker_source= None, **kwargs):
+    def __soft_constraint_reduce_ratio_of_lessons_and_subjects(self, source =  None, lesson_tracker_source= None, lesson=None, **kwargs):
         
         sc = global_config.soft_constraints
         min_count           = sc.min_count_of_specific_lessons_during_day
@@ -792,19 +900,15 @@ class Solver:
         if not min_is_able and not max_is_able:
             return
 
-        if min_is_able:
-            new_var = list(self.model.variables.add(obj=[min_count_penalty],
-                                    lb=[0], 
-                                    types=[self.model.variables.type.integer]))
-
-            _add_constraint(self.model, source+lesson_tracker_source + new_var, '>=', 0, [1/min_count]*len(source)+[-1]*len(lesson_tracker_source)+[1])
+        if min_is_able and lesson.count > self.university.study_weeks/2: # if we can set it minimum as 2 lesons 1 time per 2 weeks
+            indexes =  source+lesson_tracker_source
+            vals = [1/min_count]*len(source)+[-1]*len(lesson_tracker_source)
+            _add_soft_constraint(self.model, indexes, '>=', 0, vals, min_count_penalty, 1, "MinRatio "+str(lesson))
         
         if max_is_able:
-            new_var = list(self.model.variables.add(obj=[max_count_penalty],
-                                    lb=[0], 
-                                    types=[self.model.variables.type.integer]))
-
-            _add_constraint(self.model, source+lesson_tracker_source + new_var, '<=', 0, [1/max_count]*len(source)+[-1]*len(lesson_tracker_source)+[-1])
+            indexes =  source+lesson_tracker_source
+            vals = [1/max_count]*len(source)+[-1]*len(lesson_tracker_source)
+            _add_soft_constraint(self.model, indexes, '<=', 0, vals, max_count_penalty, -1, "MaxRatio "+str(lesson))
 
     @_for_week_and_day
     @get_timeslots
@@ -827,14 +931,21 @@ class Solver:
     @get_timeslots
     @_for_groups_or_teachers
     @get_timeslots
-    def __soft_constraint_lessons_balanced_during_module_by_timeslots(self, source = None, day_i = None, teacher_or_group=None, **kwargs):
+    def __soft_constraint_lessons_balanced_during_module_by_timeslots(self, source = None, day_i = None, teacher_or_group=None, column=None, **kwargs):
         '''
         It is very cool, when lessons on every week in current day placed at similar timeslot
         '''
         if len(source) == 0:
             return
+        
+        # TODO
+        if column == "teacher_id":
+            return
 
         if global_config.soft_constraints.balanced_constraints.by_ts_penalty <= 0 or self.university.study_weeks <= 1:
+            return
+
+        if teacher_or_group.count_of_lessons <= 1:
             return
 
         banned_weeks_only = set()
@@ -847,10 +958,11 @@ class Solver:
                 return
 
         self.__balance_timeslots_in_current_day_every_week( source, 
-                                                            global_config.soft_constraints.balanced_constraints.by_ts_level_of_solve, 
+                                                            teacher_or_group.count_of_lessons/(self.university.study_weeks/2) <= 2,#global_config.soft_constraints.balanced_constraints.by_ts_level_of_solve, 
                                                             global_config.soft_constraints.balanced_constraints.by_ts_penalty,
                                                             global_config.soft_constraints.similar_week_multiply,
-                                                            banned_weeks_only)
+                                                            banned_weeks_only,
+                                                            name="LessByTS"+str(teacher_or_group))
 
     @_for_timeslots
     @get_timeslots
@@ -860,7 +972,7 @@ class Solver:
     @get_timeslots
     @_for_rooms
     @get_timeslots
-    def __soft_constraint_lessons_balanced_during_module_by_rooms(self, source = None, day_i = None, teacher_or_group=None, **kwargs):
+    def __soft_constraint_lessons_balanced_during_module_by_rooms(self, source = None, day_i = None, teacher_or_group=None, room_i = None, **kwargs):
         '''
         It is very cool, when lessons on every week in current day placed at similar room
         '''
@@ -868,6 +980,9 @@ class Solver:
             return
 
         if global_config.soft_constraints.balanced_constraints.by_room_penalty <= 0 or self.university.study_weeks <= 1:
+            return
+
+        if teacher_or_group.count_of_lessons <= 1:
             return
 
         banned_weeks_only = set()
@@ -880,10 +995,11 @@ class Solver:
                 return
 
         self.__balance_timeslots_in_current_day_every_week( source, 
-                                                            global_config.soft_constraints.balanced_constraints.by_room_level_of_solve, 
+                                                            teacher_or_group.count_of_lessons/(self.university.study_weeks/2) <= 2, #global_config.soft_constraints.balanced_constraints.by_room_level_of_solve, 
                                                             global_config.soft_constraints.balanced_constraints.by_room_penalty,
                                                             global_config.soft_constraints.similar_week_multiply,
-                                                            banned_weeks_only)
+                                                            banned_weeks_only,
+                                                            name="LessByRooms "+str(teacher_or_group) + " Room "+ str(room_i))
 
 
     def solve(self):
@@ -929,7 +1045,7 @@ class Solver:
 
     def __parse_output_and_create_schedule(self):
         print("Solution status = ",     self.model.solution.get_status(), ":", self.model.solution.status[self.model.solution.get_status()])
-        if self.model.solution.get_status() in [1, 101, 107, 113]:
+        if self.model.solution.get_status() in [1, 101, 102, 107, 113]:
             print("Value: ", self.model.solution.get_objective_value())
         else:
             return None
@@ -939,6 +1055,7 @@ class Solver:
 
         names = self.model.variables.get_names()
         values = self.model.solution.get_values()
+        objectives = self.model.objective.get_linear()
 
         by_group = {}
         for i, val in enumerate(values):
@@ -947,7 +1064,10 @@ class Solver:
             
             variables = _get_variables_from_general_variable(names[i])
             if len(variables) == 0:
+                if objectives[i] > 0:
+                    print("{0} = {1}".format(names[i], val*objectives[i]))
                 continue
+                
 
             week, day, corpus, room, ts, lesson,  group_ids,  _type, teacher = variables
             for group_id in group_ids:

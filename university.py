@@ -72,6 +72,10 @@ class Room:
 class GroupOrTeacherBase:
     def __init__(self):
         self.banned_time_slots = set()
+        self.count_of_lessons = 0
+
+    def add_lessons(self, count):
+        self.count_of_lessons += count
     
     def ban_time_slots(self, week = None, day = None, timeslot = None):
         '''
@@ -173,6 +177,7 @@ class University:
         for group_i in range(len(self.groups)):
             if self.groups[group_i].group_name in group_names:
                 group_indexes.append(group_i)
+                self.groups[group_i].add_lessons(count)
 
         if len(group_indexes) != len(group_names):
             raise Exception("Some of groups from %s don't exist!" % group_names)
@@ -184,6 +189,7 @@ class University:
                 if self.teachers[teacher_i].name == teacher_name:
                     find = True
                     teacher_indexes.append(teacher_i)
+                    self.teachers[teacher_i].add_lessons(count)
                     break
 
             if find == False:
