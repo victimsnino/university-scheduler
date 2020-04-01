@@ -220,6 +220,16 @@ class University:
                 "Teachers: " + str(self.teachers) + "\n" + \
                 "*****************************************************"
 
+    def get_weeks_for_day(self, in_day):
+        weeks = []
+        for week, day in self.study_weeks_and_days:
+            if day == in_day:
+                weeks.append(week)
+        return weeks
+    
+    def get_weeks_count_for_day(self, in_day):
+        return len(self.get_weeks_for_day(in_day))
+        
     def __fill_study_days(self,start_from_day_of_week, end_by_day_of_week, weeks):
         self.study_weeks_and_days = []
         self.study_days = set()
