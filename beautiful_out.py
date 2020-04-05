@@ -19,7 +19,7 @@ def open_as_html(solution, university):
                     message += str(ts+1) + " "
                     if not listt is None:
                         corpus, room, lesson, _type, teacher, other_groups = listt
-                        message += "C {0} r{1} {2} {3} {4}".format(corpus, room, lesson, str(_type).split('.')[1], university.teachers[teacher])
+                        message += "C {0} r{1} {2} {3} {4}".format(corpus, room, lesson.lesson_name, str(_type).split('.')[1], university.teachers[teacher])
                     message += "</tr></td>"
                 message += "</table></td>"
             message += "</tr>"

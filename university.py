@@ -14,6 +14,22 @@ class Lesson:
         self.teacher_indexes=teacher_indexes
         self.self_index     = self_index
         self.should_be_after=[]
+        self.friend_lessons = set()
+        
+        self.total_sum_of_count_of_friend_lessons = 0
+
+    def add_friend_lesson(self, lesson_index, count_of_lessons):
+        self.friend_lessons.add(lesson_index)
+        self.total_sum_of_count_of_friend_lessons += count_of_lessons
+    
+    def get_friend_lessons_indexes(self):
+        return self.friend_lessons
+
+    def get_count(self):
+        return self.count
+
+    def get_count_with_friends(self):
+        return self.get_count() + self.total_sum_of_count_of_friend_lessons
 
     def __eq__(self, other):
         return self.full_name() == other.full_name()
@@ -56,6 +72,7 @@ class Lesson:
             raise Exception("Lesson %s and %s don't have common groups!" % (self, another_lesson))
 
         self.should_be_after.append(another_lesson.self_index)
+        return self
 
 class Room:
     def __init__(self, room_number, room_type, size):
@@ -211,6 +228,15 @@ class University:
 
         self.teachers.append(Teacher(name))
         return self.teachers[-1]
+
+    def add_friends_lessons(self, list_of_lessons):
+        if global_config.friend_lessons == False:
+            return
+
+        for lesson in list_of_lessons:
+            for other_lesson in list_of_lessons:
+                if lesson != other_lesson:
+                    lesson.add_friend_lesson(other_lesson.self_index, other_lesson.get_count())
 
     def __str__(self):
         return "*****************************************************\n" + \

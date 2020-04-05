@@ -363,7 +363,7 @@ def test_lessons_in_similar_day_and_ts_during_module():
     res, output = solver.solve()
     assert res
     
-    open_as_html(output, university)
+    #open_as_html(output, university)
 
     for group, weeks in sorted(output.items()):
         ts_by_weeks_days_and_lessons = {}
@@ -371,7 +371,7 @@ def test_lessons_in_similar_day_and_ts_during_module():
             for day, tss in sorted(days.items()):
                 for ts, data in sorted(tss.items()):
                     corpus, room, lesson, _type, teacher, other_groups = data
-                    ts_by_weeks_days_and_lessons.setdefault(week, {}).setdefault(day, {}).setdefault(lesson, []).append(ts)
+                    ts_by_weeks_days_and_lessons.setdefault(week, {}).setdefault(day, {}).setdefault(lesson.self_index, []).append(ts)
 
         for i in range(len(ts_by_weeks_days_and_lessons)-2):
             assert ts_by_weeks_days_and_lessons[i] == ts_by_weeks_days_and_lessons[i+2]
@@ -397,7 +397,7 @@ def test_similar_room_every_week():
     res, output = solver.solve()
     assert res
     
-    open_as_html(output, university)
+    #open_as_html(output, university)
 
     for group, weeks in sorted(output.items()):
         ts_by_days = {}
@@ -432,14 +432,17 @@ def test_full_module_for_two_groups():
     university.add_teacher('Слащинин')
     university.add_teacher('Зеленов')
 
-    lect = university.add_lesson("Случайные процессы", ['16-pmi'], 2*11, RoomType.LECTURE,  ['Колданов'])
-    #university.add_lesson("Случайные процессы", ['16-pmi'], 11, RoomType.PRACTICE,  ['Колданов']).should_be_after_lessons(lect)
+    lect = university.add_lesson("Случайные процессы", ['16-pmi'], 11, RoomType.LECTURE,  ['Колданов'])
+    practice = university.add_lesson("Случайные процессы", ['16-pmi'], 11, RoomType.PRACTICE,  ['Колданов'])
+    practice.should_be_after_lessons(lect)
+
     university.add_lesson("Научный семинар", ['16-pmi'], 10, RoomType.COMPUTER,  ['Бабкина'])
     university.add_lesson("Академическое письмо", ['16-pmi'], 12, RoomType.PRACTICE,  ['Фролова'])
     university.add_lesson("Компьютерная лингвистика", ['16-pmi'], 22, RoomType.LECTURE,  ['Слащинин'])
     university.add_lesson("Интернет вещей", ['16-pmi'], 22, RoomType.COMPUTER,  ['Зеленов'])
   #  university.add_lesson('Temp', ['16-pmi'], 6, RoomType.COMPUTER, ['Зеленов'])
     
+    university.add_friends_lessons([lect, practice])
     solver = Solver(university)
     res, output = solver.solve()
     assert res
@@ -481,25 +484,36 @@ def test_full_module_for_second_course():
     university.add_teacher('Асеева')
 
     lect = university.add_lesson('Алгоритмы и структуры данных', ['17bi-1', '17bi-2'], weeks, RoomType.LECTURE, ['Демкин'])
-    university.add_lesson('Алгоритмы и структуры данных', ['17bi-1'], weeks, RoomType.PRACTICE, ['Демкин']).should_be_after_lessons(lect)
-    university.add_lesson('Алгоритмы и структуры данных', ['17bi-2'], weeks, RoomType.PRACTICE, ['Демкин']).should_be_after_lessons(lect)
+    practice1 = university.add_lesson('Алгоритмы и структуры данных', ['17bi-1'], weeks, RoomType.PRACTICE, ['Демкин']).should_be_after_lessons(lect)
+    practice2 = university.add_lesson('Алгоритмы и структуры данных', ['17bi-2'], weeks, RoomType.PRACTICE, ['Демкин']).should_be_after_lessons(lect)
+
+    university.add_friends_lessons([lect, practice1])
+    university.add_friends_lessons([lect, practice2])
 
     lect = university.add_lesson('Объектно -ориентированное программирование', ['17bi-1', '17bi-2'], weeks/2, RoomType.LECTURE, ['Демкин'])
-    university.add_lesson('Объектно -ориентированное программирование', ['17bi-1'], weeks/2, RoomType.PRACTICE, ['Демкин']).should_be_after_lessons(lect)
-    university.add_lesson('Объектно -ориентированное программирование', ['17bi-2'], weeks/2, RoomType.PRACTICE, ['Демкин']).should_be_after_lessons(lect)
+    practice1 = university.add_lesson('Объектно -ориентированное программирование', ['17bi-1'], weeks/2, RoomType.PRACTICE, ['Демкин']).should_be_after_lessons(lect)
+    practice2 = university.add_lesson('Объектно -ориентированное программирование', ['17bi-2'], weeks/2, RoomType.PRACTICE, ['Демкин']).should_be_after_lessons(lect)
 
+    university.add_friends_lessons([lect, practice1])
+    university.add_friends_lessons([lect, practice2])
 
-    university.add_lesson('Теория вероятностей', ['17bi-1'], weeks, RoomType.PRACTICE, ['Семенов'])
-    university.add_lesson('Теория вероятностей', ['17bi-2'], weeks, RoomType.PRACTICE, ['Семенов'])
+    lect = university.add_lesson('Теория вероятностей', ['17bi-1', '17bi-2'], weeks, RoomType.LECTURE, ['Колданов']).should_be_after_lessons(lect)
+    practice1 = university.add_lesson('Теория вероятностей', ['17bi-1'], weeks, RoomType.PRACTICE, ['Семенов']).should_be_after_lessons(lect)
+    practice2 = university.add_lesson('Теория вероятностей', ['17bi-2'], weeks, RoomType.PRACTICE, ['Семенов']).should_be_after_lessons(lect)
+
+    university.add_friends_lessons([lect, practice1])
+    university.add_friends_lessons([lect, practice2])
 
     lect = university.add_lesson('Моделирование процессов и систем', ['17bi-1', '17bi-2'], weeks, RoomType.LECTURE, ['Асеева'])
-    university.add_lesson('Моделирование процессов и систем', ['17bi-1'], weeks, RoomType.PRACTICE, ['Куранова']).should_be_after_lessons(lect)
-    university.add_lesson('Моделирование процессов и систем', ['17bi-2'], weeks, RoomType.PRACTICE, ['Куранова']).should_be_after_lessons(lect)
+    practice1 = university.add_lesson('Моделирование процессов и систем', ['17bi-1'], weeks, RoomType.PRACTICE, ['Куранова']).should_be_after_lessons(lect)
+    practice2 = university.add_lesson('Моделирование процессов и систем', ['17bi-2'], weeks, RoomType.PRACTICE, ['Куранова']).should_be_after_lessons(lect)
 
-    university.add_lesson('Теория вероятности', ['17bi-1', '17bi-2'], weeks, RoomType.LECTURE, ['Колданов'])
+    university.add_friends_lessons([lect, practice1])
+    university.add_friends_lessons([lect, practice2])
 
     lect = university.add_lesson('Анализ данных', ['17bi-1', '17bi-2'], weeks, RoomType.LECTURE, ['Калягин'])
-    university.add_lesson('Анализ данных', ['17bi-1'], weeks, RoomType.PRACTICE, ['Казаков']).should_be_after_lessons(lect)
+    practice1 = university.add_lesson('Анализ данных', ['17bi-1'], weeks, RoomType.PRACTICE, ['Казаков']).should_be_after_lessons(lect)
+    university.add_friends_lessons([lect, practice1])
 
     university.add_lesson('Английский язык', ['17bi-1', '17bi-2'], 2*weeks, RoomType.LECTURE, ['Фролова'])
 
@@ -577,7 +591,7 @@ def test_lessons_grouped_by_lesson_id_during_week():
 
     solver = Solver(university)
     res, out = solver.solve()
-    open_as_html(out, university)
+   # open_as_html(out, university)
 
     for group, weeks in sorted(out.items()):
         for week, days in sorted(weeks.items()):
@@ -585,9 +599,8 @@ def test_lessons_grouped_by_lesson_id_during_week():
                 uniq_lessons = set()
                 for ts, data in sorted(tss.items()):
                     corpus, room, lesson, _type, teacher, other_groups = data
-                    uniq_lessons.add(lesson)
+                    uniq_lessons.add(lesson.self_index)
                 assert len(uniq_lessons) <= 1
-
 
 def test_lessons_grouped_by_lesson_id_during_day():
     university = University(weeks=4)
@@ -600,7 +613,7 @@ def test_lessons_grouped_by_lesson_id_during_day():
 
     solver = Solver(university)
     res, out = solver.solve()
-    open_as_html(out, university)
+   # open_as_html(out, university)
 
     for group, weeks in sorted(out.items()):
         for week, days in sorted(weeks.items()):
@@ -608,10 +621,10 @@ def test_lessons_grouped_by_lesson_id_during_day():
                 lessons_cache = []
                 for ts, data in sorted(tss.items()):
                     corpus, room, lesson, _type, teacher, other_groups = data
-                    if not lesson in lessons_cache:
-                        lessons_cache.append(lesson)
+                    if not lesson.self_index in lessons_cache:
+                        lessons_cache.append(lesson.self_index)
                     else:
-                        assert lessons_cache.index(lesson) == len(lessons_cache) -1
+                        assert lessons_cache.index(lesson.self_index) == len(lessons_cache) -1
 
 def test_lessons_balanced_every_week_every_day():
     global_config.soft_constraints.balanced_constraints.by_lesson_level_of_solve = 3
@@ -629,7 +642,7 @@ def test_lessons_balanced_every_week_every_day():
 
     solver = Solver(university)
     res, out = solver.solve()
-    open_as_html(out, university)
+   # open_as_html(out, university)
 
     for group, weeks in sorted(out.items()):
         lessons_by_day = {}
@@ -645,3 +658,64 @@ def test_lessons_balanced_every_week_every_day():
             ts_values = timeslots_by_day[day]
             assert count == len(ts_values)
 
+def test_friend_lessons():
+    university = University(weeks=2)
+    university.add_room(1, 1, RoomType.LECTURE | RoomType.PRACTICE, 10)
+    university.add_group('Group', 1, GroupType.BACHELOR)
+    university.add_teacher('Teacher').ban_time_slots(day=1).ban_time_slots(day=6)
+
+    count = 8
+    lect = university.add_lesson('Lesson', ['Group'], count, RoomType.LECTURE, ['Teacher'])
+    practice = university.add_lesson('Lesson', ['Group'], count, RoomType.PRACTICE, ['Teacher'])
+
+    practice.should_be_after_lessons(lect)
+    university.add_friends_lessons([lect, practice])
+
+
+    solver = Solver(university)
+    res, out = solver.solve()
+    #open_as_html(out, university)
+
+    for group, weeks in sorted(out.items()):
+        for week, days in sorted(weeks.items()):
+            for day, tss in sorted(days.items()):
+                uniq_lessons = set()
+                for ts, data in sorted(tss.items()):
+                    corpus, room, lesson, _type, teacher, other_groups = data
+                    uniq_lessons.add(lesson.self_index)
+                assert len(uniq_lessons) == 0 or len(uniq_lessons) == 2
+
+
+def test_friend_lessons_diff_groups():
+    
+    university = University(weeks=2)
+    university.add_room(1, 1, RoomType.LECTURE | RoomType.PRACTICE, 10)
+    university.add_group('Group1', 1, GroupType.BACHELOR)
+    university.add_group('Group2', 1, GroupType.BACHELOR)
+    university.add_teacher('Teacher').ban_time_slots(day=0).ban_time_slots(day=1)
+
+    count = 4
+    lect1 = university.add_lesson('Lesson', ['Group1'], count, RoomType.LECTURE, ['Teacher'])
+    lect2 = university.add_lesson('Lesson', ['Group2'], count, RoomType.LECTURE, ['Teacher'])
+    practice1 = university.add_lesson('Lesson', ['Group1'], count, RoomType.PRACTICE, ['Teacher'])
+    practice2 = university.add_lesson('Lesson', ['Group2'], count, RoomType.PRACTICE, ['Teacher'])
+
+    practice1.should_be_after_lessons(lect1)
+    practice2.should_be_after_lessons(lect2)
+
+    university.add_friends_lessons([lect1, practice1])
+    university.add_friends_lessons([lect2, practice2])
+
+
+    solver = Solver(university)
+    res, out = solver.solve()
+    open_as_html(out, university)
+
+    for group, weeks in sorted(out.items()):
+        for week, days in sorted(weeks.items()):
+            for day, tss in sorted(days.items()):
+                uniq_lessons = set()
+                for ts, data in sorted(tss.items()):
+                    corpus, room, lesson, _type, teacher, other_groups = data
+                    uniq_lessons.add(lesson.self_index)
+                assert len(uniq_lessons) == 0 or len(uniq_lessons) == 2

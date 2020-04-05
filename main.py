@@ -70,6 +70,7 @@ Done:
 * __soft_constraint_lessons_balanced_during_module_by_rooms
     * Grouping by rooms in selected day every week 
 
+* Added friend lessons: it is so close lessons. For example "DummyLesson.Practice" and "DummyLesson.Lecture". These lessons so close.
 * Split groups to bachelors and magistrecy for splitting by timeslots
 * It is possible to set day of week for start or end of module and count of weeks
 * Easy parser for output - parse_output_and_create_schedule

@@ -25,11 +25,10 @@ def _add_constraint(my_model, indexes_or_variables, sense, value, val = None):
         val = [1.0]*len(indexes_or_variables)
 
     debug(str(indexes_or_variables) + sense + str(value))
-
     my_model.linear_constraints.add(lin_expr = [cplex.SparsePair(ind = indexes_or_variables, 
-                                                                 val = val)], 
+                                                                val = val)], 
                                     senses = senses[valid_operations.index(sense)],
-                                    rhs = [value])                                 
+                                    rhs = [value])
 
 def _add_soft_constraint(my_model, indexes_or_variables, sense, value, vals, penalty, val_for_new_variable, name=None, ub = None):
     if penalty > 0: # A.K.A soft constraint
@@ -54,7 +53,7 @@ def _get_indexes_by_name(variables, search, is_just_regex = False, source = None
     cache = timeslots_filter_cache.setdefault(search, {}).setdefault(str(source), {})
     value = cache.get('cached_var', None)
     if not value is None:
-        return value
+        return copy.deepcopy(value)
 
     debug(search)
     data_regex = re.compile(search)
@@ -65,7 +64,7 @@ def _get_indexes_by_name(variables, search, is_just_regex = False, source = None
 
     cache['cached_var'] = indexes
 
-    return indexes
+    return copy.deepcopy(indexes)
 
 def _get_indexes_of_timeslots_by_filter(variables, week = r'.*', day = r'.*', corpus = r'.*', 
                                         room = r'.*', timeslot = r'.*', lesson = r'.*', group_id = r'.*', 
@@ -213,8 +212,27 @@ def _for_lessons(function):
             function(self, lesson=lesson, lesson_i=lesson_i, **kwargs)
     return _decorator
 
+def _for_lessons_with_friends(function):
+    @wraps(function)
+    def _decorator(self, **kwargs):
+        for lesson_i, lesson in enumerate(self.university.lessons):
+            function(self, lesson=lesson, lesson_i=lesson_i, friends_indexes=lesson.get_friend_lessons_indexes(), **kwargs)
+    return _decorator
+
 #########################################
 
+def _get_indexes_with_friends(list_of_friends):
+    def wrapper(function):
+        @wraps(function)
+        def _decorator(self, lesson):
+            indexes = function(self, lesson)
+            for friend_lesson in list_of_friends:
+                indexes += function(self, friend_lesson)
+            return indexes
+        return _decorator
+    return wrapper
+
+########################################
 def get_timeslots(function):
     @wraps(function)
     def _decorator(self, source=None, **kwargs):
@@ -228,12 +246,17 @@ def get_timeslots(function):
         column      = kwargs.get('column', None)
         ith         = kwargs.get('ith', None)
 
-        indexes = _get_indexes_of_timeslots_by_filter(self.model.variables, source=source, week=week, day=day, corpus=corpus, room=room, timeslot=timeslot, lesson=lesson, type=type)
+        @_get_indexes_with_friends(kwargs.get('friends_indexes', []))
+        def get_indexes(self, lesson):
+            indexes = _get_indexes_of_timeslots_by_filter(self.model.variables, source=source, week=week, day=day, corpus=corpus, room=room, timeslot=timeslot, lesson=lesson, type=type)
+            if column:
+                temp = self.model.variables.get_names(indexes)
+                indexes = eval('_get_indexes_of_timeslots_by_filter(self.model.variables, source = temp, %s=ith)' % column)
+                ith # needed for capturing it inside functon
+            return indexes
+
+        indexes = get_indexes(self, lesson)
         temp = self.model.variables.get_names(indexes)
-        
-        if column:
-            indexes = eval('_get_indexes_of_timeslots_by_filter(self.model.variables, source = temp, %s=ith)' % column)
-            temp = self.model.variables.get_names(indexes)
 
         function(self, source=temp, **kwargs)
     return _decorator
@@ -290,12 +313,17 @@ def get_lesson_tracker(function):
         column      = kwargs.get('column', None)
         ith         = kwargs.get('ith', None)
 
-        indexes = get_lesson_tracker_by_filter(self.model.variables, week=week, day=day, lesson_id=lesson_id, source=lesson_tracker_source)
-        temp = self.model.variables.get_names(indexes)
-        if column:
-            indexes = eval('get_lesson_tracker_by_filter(self.model.variables, source=temp, %s=ith)' % column)
-            temp = self.model.variables.get_names(indexes)
+        @_get_indexes_with_friends([] )# kwargs.get('friends_indexes', []))
+        def get_indexes(self, lesson_id):
+            indexes = get_lesson_tracker_by_filter(self.model.variables, week=week, day=day, lesson_id=lesson_id, source=lesson_tracker_source)
+            if column:
+                temp = self.model.variables.get_names(indexes)
+                indexes = eval('get_lesson_tracker_by_filter(self.model.variables, source=temp, %s=ith)' % column)
+                ith # needed for capturing it inside functon 
+            return indexes
 
+        indexes = get_indexes(self, lesson_id)
+        temp = self.model.variables.get_names(indexes)
         function(self, lesson_tracker_source=temp, **kwargs)
     return _decorator
 
@@ -394,9 +422,6 @@ class Solver:
     @_for_groups_or_teachers
     @get_timeslots
     def __fill_dummy_variables_for_tracking_lessons(self, source = None, week_i = None, day_i = None, lesson = None, column = None, ith=None,  **kwargs):
-        ''' 
-        Add dummy variables for corpus tracking (Group or teacher has lection in i-th corpus)
-        '''
         new_format = lesson_id_per_day_base_tracker_format + (group_prefix if column == 'group_id' else teacher_prefix) + '%d'
         self.__fill_variables_helper(new_format % (week_i, day_i, lesson.self_index, ith), source, global_config.time_slots_per_day_available)
 
@@ -409,7 +434,7 @@ class Solver:
         '''
         for teacher_i in lesson.teacher_indexes:
             lections_indexes = _get_indexes_of_timeslots_by_filter(self.model.variables, source=source, teacher_id=teacher_i)
-            self.__fill_variables_helper(teachers_per_lesson_format % (lesson.self_index, teacher_i), lections_indexes, lesson.count)
+            self.__fill_variables_helper(teachers_per_lesson_format % (lesson.self_index, teacher_i), lections_indexes, lesson.get_count())
 
     @_for_lessons
     @get_timeslots
@@ -418,7 +443,7 @@ class Solver:
         Every lesson should have a count of lessons, which we request \n
         Therefore we should add constraints for it (count of all lessons in timeslots == requested)
         '''
-        _add_constraint(self.model, source, '==', lesson.count)
+        _add_constraint(self.model, source, '==', lesson.get_count())
 
     @_for_timeslots
     @get_timeslots
@@ -481,8 +506,10 @@ class Solver:
                 after_till_index    = get_greater_index(after_costs, cost)
                 original_till_index = get_greater_index(original_costs, cost)
                 
-                _add_constraint(self.model, should_be_after_indexes[:after_till_index]+original_indexes[:original_till_index], '>=', 0,
-                                [float(lesson.count/should_be_after_this.count)]*after_till_index+[-1]*original_till_index)
+                indexes = should_be_after_indexes[:after_till_index]+original_indexes[:original_till_index]
+                vals = [float(lesson.get_count()/should_be_after_this.get_count())]*after_till_index+[-1]*original_till_index
+                _add_constraint(self.model, indexes, '>=', 0, vals)
+                _add_soft_constraint(self.model, indexes, '<=', 1.9, vals, 1, -1, 'Less after less max')
 
         # practice
         for lesson_i, lesson in enumerate(self.university.lessons):
@@ -612,8 +639,7 @@ class Solver:
 
         _add_constraint(self.model, source + vars, '==', min_lessons, [1]*len(source)+indicies)
         _add_constraint(self.model, vars, '==', 1)
-    
-    
+        
     def __balance_timeslots_in_current_day_every_week(self, source, similar_type_only, base_penalty, multiple_for_similar_type, banned_weeks_only, day, lesson = None, name= ""):
         ts_by_weeks = {}
 
@@ -625,7 +651,7 @@ class Solver:
         def calculate_penalty(base, weeks):
             penalty = base
             if lesson:
-                per_week = float(lesson.count/weeks)
+                per_week = float(lesson.get_count()/weeks)
                 if per_week == int(per_week) and per_week > 0: # can be boosted as a hard constraint
                     penalty = -1
             return penalty
@@ -689,8 +715,6 @@ class Solver:
         penalty = base_penalty #calculate_penalty(base_penalty, weeks)
         _add_soft_constraint(self.model, temp_weeks, '==', weeks, vals, penalty, 1, name + " general")
 
-
-
     def __legacy_balance_timeslots_in_current_day_every_week(self, source, level_of_solve, base_penalty, multiple_for_similar_type, banned_weeks_only, lesson = None, name= ""):
         ts_by_weeks = {}
 
@@ -749,7 +773,7 @@ class Solver:
                     is_soft_constraint = True
                 elif is_have_banned:
                     is_soft_constraint = True
-                elif lesson and lesson.count < self.university.study_weeks/2:
+                elif lesson and lesson.get_count() < self.university.study_weeks/2:
                     is_soft_constraint = True
 
                 indexes = wi + wj
@@ -774,10 +798,10 @@ class Solver:
         if global_config.soft_constraints.balanced_constraints.by_lesson_penalty <= 0 or self.university.study_weeks <= 1:
             return
 
-        if lesson.count == 1:
+        if lesson.get_count() == 1:
             return
 
-        if lesson.count < self.university.study_weeks/2:
+        if lesson.get_count() < self.university.study_weeks/2:
             print("Lesson {0} can be potential reason for slowing of solving (count of lessons lower, than count of weeks/2.".format(lesson))
 
         banned_weeks_only = set()
@@ -798,15 +822,14 @@ class Solver:
 
         lessons_per_day = global_config.soft_constraints.min_count_of_specific_lessons_during_day
         self.__balance_timeslots_in_current_day_every_week( source, 
-                                                            int(lesson.count/(self.university.get_weeks_count_for_day(day_i)/2)) <= lessons_per_day, #global_config.soft_constraints.balanced_constraints.by_lesson_level_of_solve, 
+                                                            int(lesson.get_count_with_friends()/(self.university.get_weeks_count_for_day(day_i)/2)) <= lessons_per_day, #global_config.soft_constraints.balanced_constraints.by_lesson_level_of_solve, 
                                                             global_config.soft_constraints.balanced_constraints.by_lesson_penalty,
                                                             global_config.soft_constraints.similar_week_multiply,
                                                             banned_weeks_only,
                                                             day_i,
                                                             lesson,
                                                             "LessDurModule "+ str(lesson))
-
-    
+ 
     @_for_week_and_day
     @get_room_tracker
     @get_lesson_tracker
@@ -901,11 +924,10 @@ class Solver:
     @_for_groups_or_teachers
     @get_timeslots
     @get_lesson_tracker
-    @_for_lessons
+    @_for_lessons_with_friends
     @get_timeslots
     @get_lesson_tracker
     def __soft_constraint_reduce_ratio_of_lessons_and_subjects(self, source =  None, lesson_tracker_source= None, lesson=None, **kwargs):
-        
         sc = global_config.soft_constraints
         min_count           = sc.min_count_of_specific_lessons_during_day
         min_count_penalty   = sc.min_count_of_specific_lessons_penalty
@@ -919,7 +941,7 @@ class Solver:
         if not min_is_able and not max_is_able:
             return
 
-        if min_is_able and lesson.count > self.university.study_weeks/2: # if we can set it minimum as 2 lesons 1 time per 2 weeks
+        if min_is_able and lesson.get_count_with_friends() > self.university.study_weeks/2: # if we can set it minimum as 2 lesons 1 time per 2 weeks
             indexes =  source+lesson_tracker_source
             vals = [1/min_count]*len(source)+[-1]*len(lesson_tracker_source)
             _add_soft_constraint(self.model, indexes, '>=', 0, vals, min_count_penalty, 1, "MinRatio "+str(lesson))
@@ -1022,7 +1044,6 @@ class Solver:
                                                             day_i,
                                                             name="LessByRooms "+str(teacher_or_group) + " Room "+ str(room_i))
 
-
     def solve(self):
         #self.model.set_results_stream(None) # ignore standart useless output
         if len(global_config.soft_constraints.timeslots_penalty) != global_config.time_slots_per_day_available:
@@ -1110,15 +1131,15 @@ class Solver:
                     temp[ts] = {}
                 temp_list = copy.deepcopy(group_ids)
                 temp_list.remove(group_id)
-                temp[ts] = [int(corpus), int(room), self.university.lessons[lesson].lesson_name, _type, int(teacher), temp_list]
+                temp[ts] = [int(corpus), int(room), self.university.lessons[lesson], _type, int(teacher), temp_list]
 
-        for group, weeks in sorted(by_group.items()):
-            for week, days in sorted(weeks.items()):
-                for day, tss in sorted(days.items()):
-                    for ts, listt in sorted(tss.items()):
-                        corpus, room, lesson, _type, teacher, other_groups = listt
-                        print("Groups %s \t Week %d\tDay %d Corpus %d  TS %d  room %d\tlesson %s\ttype %s\t\t With %s  \tteacher %s" % 
-                              (group, week, day, corpus, ts, room, lesson, str(_type).split('.')[1], ",".join(str(i) for i in other_groups), self.university.teachers[teacher] ))
+        # for group, weeks in sorted(by_group.items()):
+        #     for week, days in sorted(weeks.items()):
+        #         for day, tss in sorted(days.items()):
+        #             for ts, listt in sorted(tss.items()):
+        #                 corpus, room, lesson, _type, teacher, other_groups = listt
+        #                 print("Groups %s \t Week %d\tDay %d Corpus %d  TS %d  room %d\tlesson %s\ttype %s\t\t With %s  \tteacher %s" % 
+        #                       (group, week, day, corpus, ts, room, lesson, str(_type).split('.')[1], ",".join(str(i) for i in other_groups), self.university.teachers[teacher] ))
 
         return by_group
     

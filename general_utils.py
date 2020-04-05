@@ -64,6 +64,8 @@ class Config:
         # windows for groups is more critical thing then for teachers.
         self.windows_groups_multiplier      = 2
         self.soft_constraints               = SoftConstraints()
+        
+        self.friend_lessons                 = True
 
 global_config = Config()
 
