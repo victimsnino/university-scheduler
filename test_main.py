@@ -432,8 +432,8 @@ def test_full_module_for_two_groups():
     university.add_teacher('Слащинин')
     university.add_teacher('Зеленов')
 
-    lect = university.add_lesson("Случайные процессы", ['16-pmi'], 11, RoomType.LECTURE,  ['Колданов'])
-    university.add_lesson("Случайные процессы", ['16-pmi'], 11, RoomType.PRACTICE,  ['Колданов']).should_be_after_lessons(lect)
+    lect = university.add_lesson("Случайные процессы", ['16-pmi'], 2*11, RoomType.LECTURE,  ['Колданов'])
+    #university.add_lesson("Случайные процессы", ['16-pmi'], 11, RoomType.PRACTICE,  ['Колданов']).should_be_after_lessons(lect)
     university.add_lesson("Научный семинар", ['16-pmi'], 10, RoomType.COMPUTER,  ['Бабкина'])
     university.add_lesson("Академическое письмо", ['16-pmi'], 12, RoomType.PRACTICE,  ['Фролова'])
     university.add_lesson("Компьютерная лингвистика", ['16-pmi'], 22, RoomType.LECTURE,  ['Слащинин'])

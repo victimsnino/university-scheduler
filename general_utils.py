@@ -12,7 +12,7 @@ class BalancedConstraints:
         self.by_lesson_penalty              = 1
         self.by_lesson_level_of_solve       = FAST
 
-        self.by_ts_penalty                  = 0
+        self.by_ts_penalty                  = 0.1
         self.by_ts_level_of_solve           = SLOW
 
         self.by_room_penalty                = 0
