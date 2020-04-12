@@ -468,7 +468,7 @@ def test_full_module_for_second_course():
     university.add_room(1, 306, RoomType.PRACTICE, 100)
 
     university.add_room(2, 216, RoomType.PRACTICE, 100)
-    university.add_room(2, 402, RoomType.LECTURE, 100)
+    university.add_room(2, 402, RoomType.LECTURE | RoomType.PRACTICE, 100)
     
 
     university.add_group('17bi-1', 15, GroupType.BACHELOR)
@@ -515,7 +515,8 @@ def test_full_module_for_second_course():
     practice1 = university.add_lesson('Анализ данных', ['17bi-1'], weeks, RoomType.PRACTICE, ['Казаков']).should_be_after_lessons(lect)
     university.add_friends_lessons([lect, practice1])
 
-    university.add_lesson('Английский язык', ['17bi-1', '17bi-2'], 2*weeks, RoomType.LECTURE, ['Фролова'])
+    university.add_lesson('Английский язык', ['17bi-1', '17bi-2'],  2*weeks, RoomType.LECTURE, ['Фролова'])
+    university.add_lesson('Английский язык1', ['17bi-1', '17bi-2'], 2*weeks, RoomType.LECTURE, ['Фролова'])
 
     solver = Solver(university)
     res, output = solver.solve()
@@ -556,7 +557,6 @@ def test_no_lessons_in_saturday():
             assert not global_config.study_days-1 in days
 
 def test_no_lessons_first_timeslot():
-    global_config.soft_constraints.balanced_constraints.by_lesson_level_of_solve = 3
     global_config.soft_constraints.last_day_in_week_penalty = 0
     university = University(weeks=4)
     university.add_room(1, 1, RoomType.LECTURE, 10)
@@ -627,7 +627,6 @@ def test_lessons_grouped_by_lesson_id_during_day():
                         assert lessons_cache.index(lesson.self_index) == len(lessons_cache) -1
 
 def test_lessons_balanced_every_week_every_day():
-    global_config.soft_constraints.balanced_constraints.by_lesson_level_of_solve = 3
     global_config.soft_constraints.timeslots_penalty = [0,0,0,0,0,0,0,0]
 
     university = University(weeks=3)
@@ -686,13 +685,12 @@ def test_friend_lessons():
                 assert len(uniq_lessons) == 0 or len(uniq_lessons) == 2
 
 
-def test_friend_lessons_diff_groups():
-    
+def test_friend_lessons_diff_groups_diff_lections():
     university = University(weeks=2)
     university.add_room(1, 1, RoomType.LECTURE | RoomType.PRACTICE, 10)
     university.add_group('Group1', 1, GroupType.BACHELOR)
     university.add_group('Group2', 1, GroupType.BACHELOR)
-    university.add_teacher('Teacher').ban_time_slots(day=0).ban_time_slots(day=1)
+    university.add_teacher('Teacher').ban_time_slots(day=0)
 
     count = 4
     lect1 = university.add_lesson('Lesson', ['Group1'], count, RoomType.LECTURE, ['Teacher'])
@@ -719,3 +717,45 @@ def test_friend_lessons_diff_groups():
                     corpus, room, lesson, _type, teacher, other_groups = data
                     uniq_lessons.add(lesson.self_index)
                 assert len(uniq_lessons) == 0 or len(uniq_lessons) == 2
+
+
+def test_friend_lessons_diff_groups_common_lecture():
+    global_config.timelimit_for_solve = 0
+
+    university = University(weeks=2)
+    university.add_room(1, 1, RoomType.LECTURE | RoomType.PRACTICE, 10)
+    university.add_room(1, 2, RoomType.LECTURE | RoomType.PRACTICE, 10)
+    university.add_room(1, 3, RoomType.LECTURE | RoomType.PRACTICE, 10)
+    university.add_room(1, 4, RoomType.LECTURE | RoomType.PRACTICE, 10)
+    university.add_group('Group1', 1, GroupType.BACHELOR)
+    university.add_group('Group2', 1, GroupType.BACHELOR)
+    university.add_teacher('Teacher')
+    university.add_teacher('Teacher1')
+
+    count = 4
+    lect = university.add_lesson('Lesson', ['Group1', 'Group2'], count, RoomType.LECTURE, ['Teacher'])
+    practice1 = university.add_lesson('Lesson', ['Group1'], count, RoomType.PRACTICE, ['Teacher'])
+    practice2 = university.add_lesson('Lesson', ['Group2'], count, RoomType.PRACTICE, ['Teacher'])
+    for i in range(count):
+        university.add_lesson('DummyLesson'+str(i), ['Group1'], 1, RoomType.PRACTICE, ['Teacher1'])
+        university.add_lesson('DummyLesson'+str(i), ['Group2'], 1, RoomType.PRACTICE, ['Teacher1'])    
+
+    practice1.should_be_after_lessons(lect)
+    practice2.should_be_after_lessons(lect)
+
+    university.add_friends_lessons([lect, practice1])
+    university.add_friends_lessons([lect, practice2])
+
+
+    solver = Solver(university)
+    res, out = solver.solve()
+    open_as_html(out, university)
+
+    for group, weeks in sorted(out.items()):
+        for week, days in sorted(weeks.items()):
+            for day, tss in sorted(days.items()):
+                uniq_lessons = set()
+                for ts, data in sorted(tss.items()):
+                    corpus, room, lesson, _type, teacher, other_groups = data
+                    uniq_lessons.add(lesson.self_index)
+                assert len(uniq_lessons) == 0 or len(uniq_lessons) == 3

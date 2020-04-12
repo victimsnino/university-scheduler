@@ -212,11 +212,12 @@ def _for_lessons(function):
             function(self, lesson=lesson, lesson_i=lesson_i, **kwargs)
     return _decorator
 
+# required to put it after @_for_groups_or_teachers
 def _for_lessons_with_friends(function):
     @wraps(function)
     def _decorator(self, **kwargs):
         for lesson_i, lesson in enumerate(self.university.lessons):
-            function(self, lesson=lesson, lesson_i=lesson_i, friends_indexes=lesson.get_friend_lessons_indexes(), **kwargs)
+            function(self, lesson=lesson, lesson_i=lesson_i, friends_enabled=True, **kwargs)
     return _decorator
 
 #########################################
@@ -236,17 +237,26 @@ def _get_indexes_with_friends(list_of_friends):
 def get_timeslots(function):
     @wraps(function)
     def _decorator(self, source=None, **kwargs):
-        week        = kwargs.get('week_i', r'.*')
-        day         = kwargs.get('day_i', r'.*')
-        corpus      = kwargs.get('corpus_i', r'.*')
-        room        = kwargs.get('room_i', r'.*')
-        timeslot    = kwargs.get('timeslot', r'.*')
-        lesson      = kwargs.get('lesson_i', r'.*')
-        type        = kwargs.get('type', r'.*')
-        column      = kwargs.get('column', None)
-        ith         = kwargs.get('ith', None)
+        week            = kwargs.get('week_i', r'.*')
+        day             = kwargs.get('day_i', r'.*')
+        corpus          = kwargs.get('corpus_i', r'.*')
+        room            = kwargs.get('room_i', r'.*')
+        timeslot        = kwargs.get('timeslot', r'.*')
+        lesson_i        = kwargs.get('lesson_i', r'.*')
+        type            = kwargs.get('type', r'.*')
+        column          = kwargs.get('column', None)
+        ith             = kwargs.get('ith', None)
+        friends_enabled = kwargs.get('friends_enabled', False)
 
-        @_get_indexes_with_friends(kwargs.get('friends_indexes', []))
+        friend_indexes = []
+        if friends_enabled:
+            if column is None or ith is None:
+                raise Exception("teacher or group must be not None in case of using 'friends'")
+            
+            if self.university.is_teacher_or_group_in_lesson(lesson_i, ith, column == 'teacher_id'):
+                friend_indexes = self.university.get_friend_indexes(lesson_i, ith, column == 'teacher_id')
+        
+        @_get_indexes_with_friends(friend_indexes)
         def get_indexes(self, lesson):
             indexes = _get_indexes_of_timeslots_by_filter(self.model.variables, source=source, week=week, day=day, corpus=corpus, room=room, timeslot=timeslot, lesson=lesson, type=type)
             if column:
@@ -255,7 +265,7 @@ def get_timeslots(function):
                 ith # needed for capturing it inside functon
             return indexes
 
-        indexes = get_indexes(self, lesson)
+        indexes = get_indexes(self, lesson_i)
         temp = self.model.variables.get_names(indexes)
 
         function(self, source=temp, **kwargs)
@@ -508,8 +518,8 @@ class Solver:
                 
                 indexes = should_be_after_indexes[:after_till_index]+original_indexes[:original_till_index]
                 vals = [float(lesson.get_count()/should_be_after_this.get_count())]*after_till_index+[-1]*original_till_index
-                _add_constraint(self.model, indexes, '>=', 0, vals)
-                _add_soft_constraint(self.model, indexes, '<=', 1.9, vals, 1, -1, 'Less after less max')
+                _add_soft_constraint(self.model, indexes, '>=', 0, vals, 1, 1, 'Less after less min')
+                _add_soft_constraint(self.model, indexes, '<=', 2, vals, 1, -1, 'Less after less max')
 
         # practice
         for lesson_i, lesson in enumerate(self.university.lessons):
@@ -594,16 +604,16 @@ class Solver:
     @get_timeslots
     @_for_groups_or_teachers
     @get_timeslots
-    def __soft_constraint_max_lessons_per_day(self, source=None, **kwargs):
+    def __soft_constraint_max_lessons_per_day(self, source=None, teacher_or_group = None, week_i = None, day_i = None, **kwargs):
         if  global_config.soft_constraints.max_lessons_per_day_penalty <= 0 or \
             global_config.soft_constraints.max_lessons_per_day <= 0 or  \
             global_config.soft_constraints.max_lessons_per_day >= global_config.time_slots_per_day_available:
             return
-
+        name = "MaxLessons {0} w{1} d{2}".format(str(teacher_or_group), week_i, day_i)
         for excess_lessons_per_day in range(global_config.soft_constraints.max_lessons_per_day, global_config.time_slots_per_day_available):
             vals = [1]*len(source)
             penalty = excess_lessons_per_day*global_config.soft_constraints.max_lessons_per_day_penalty
-            _add_soft_constraint(self.model, copy.deepcopy(source), '<=', excess_lessons_per_day, vals, penalty, -1, "MaxLessons", ub=global_config.time_slots_per_day_available)
+            _add_soft_constraint(self.model, copy.deepcopy(source), '<=', excess_lessons_per_day, vals, penalty, -1, name, ub=global_config.time_slots_per_day_available)
 
     @_for_week_and_day
     @get_timeslots
@@ -780,6 +790,8 @@ class Solver:
                 values = [1]*len(wi) + [-1]*len(wj)
                 add_constraint_for_balanced(self, is_soft_constraint, similar_type_of_week, indexes, values)
 
+    @_for_groups_or_teachers
+    @get_timeslots
     @_for_timeslots
     @get_timeslots
     @_for_lessons
@@ -788,10 +800,14 @@ class Solver:
     @get_timeslots
     @_for_rooms
     @get_timeslots
-    def __soft_constraint_lessons_balanced_during_module(self, source = None, lesson=None, day_i = None, **kwargs):
+    def __soft_constraint_lessons_balanced_during_module(self, source = None, lesson=None, day_i = None, ith=None, column=None, **kwargs):
         '''
         It is very cool, when lessons on every week placed at similar day and timeslot
         '''
+        #TODO
+        if column == 'teacher_id':
+            return
+
         if len(source) == 0:
             return
 
@@ -820,9 +836,10 @@ class Solver:
                 elif not day is None and day == day_i:
                     return
 
+        count_of_lessons = self.university.get_count_of_lessons_with_friends(lesson.self_index, ith, column == 'teacher_id')
         lessons_per_day = global_config.soft_constraints.min_count_of_specific_lessons_during_day
         self.__balance_timeslots_in_current_day_every_week( source, 
-                                                            int(lesson.get_count_with_friends()/(self.university.get_weeks_count_for_day(day_i)/2)) <= lessons_per_day, #global_config.soft_constraints.balanced_constraints.by_lesson_level_of_solve, 
+                                                            int(count_of_lessons/(self.university.get_weeks_count_for_day(day_i)/2)) <= lessons_per_day,
                                                             global_config.soft_constraints.balanced_constraints.by_lesson_penalty,
                                                             global_config.soft_constraints.similar_week_multiply,
                                                             banned_weeks_only,
@@ -927,9 +944,14 @@ class Solver:
     @_for_lessons_with_friends
     @get_timeslots
     @get_lesson_tracker
-    def __soft_constraint_reduce_ratio_of_lessons_and_subjects(self, source =  None, lesson_tracker_source= None, lesson=None, **kwargs):
+    def __soft_constraint_reduce_ratio_of_lessons_and_subjects(self, source =  None, lesson_tracker_source= None, lesson=None, column=None, ith = None, week_i = None, day_i=None, **kwargs):
+        if len(source) == 0:
+            return
+
         sc = global_config.soft_constraints
         min_count           = sc.min_count_of_specific_lessons_during_day
+        if lesson.lesson_type == RoomType.LECTURE:
+            min_count = math.ceil(min_count/2)
         min_count_penalty   = sc.min_count_of_specific_lessons_penalty
 
         max_count           = sc.max_count_of_specific_lessons_during_day
@@ -941,15 +963,21 @@ class Solver:
         if not min_is_able and not max_is_able:
             return
 
-        if min_is_able and lesson.get_count_with_friends() > self.university.study_weeks/2: # if we can set it minimum as 2 lesons 1 time per 2 weeks
+        count_of_lessons = self.university.get_count_of_lessons_with_friends(lesson.self_index, ith, column == 'teacher_id')
+
+        if min_is_able and count_of_lessons > self.university.study_weeks/2: # if we can set it minimum as 2 lesons 1 time per 2 weeks
             indexes =  source+lesson_tracker_source
             vals = [1/min_count]*len(source)+[-1]*len(lesson_tracker_source)
-            _add_soft_constraint(self.model, indexes, '>=', 0, vals, min_count_penalty, 1, "MinRatio "+str(lesson))
+            _add_soft_constraint(self.model, indexes, '>=', 0, vals, min_count_penalty, 1, "MinRatio w {0} d {1} l {2} c {3}".format(week_i, day_i, str(lesson), column))
         
         if max_is_able:
+            #todo
+            if column == "teacher_id":
+                return
+            
             indexes =  source+lesson_tracker_source
             vals = [1/max_count]*len(source)+[-1]*len(lesson_tracker_source)
-            _add_soft_constraint(self.model, indexes, '<=', 0, vals, max_count_penalty, -1, "MaxRatio "+str(lesson))
+            _add_soft_constraint(self.model, indexes, '<=', 0, vals, max_count_penalty, -1, "MaxRatio w {0} d {1} l {2} c {3}".format(week_i, day_i, str(lesson), column))
 
     @_for_week_and_day
     @get_timeslots
@@ -999,7 +1027,7 @@ class Solver:
                 return
 
         self.__balance_timeslots_in_current_day_every_week( source, 
-                                                            int(teacher_or_group.count_of_lessons/(self.university.get_weeks_count_for_day(day_i)/2)) <= 2,#global_config.soft_constraints.balanced_constraints.by_ts_level_of_solve, 
+                                                            int(teacher_or_group.count_of_lessons/(self.university.get_weeks_count_for_day(day_i)/2)) <= 2,
                                                             global_config.soft_constraints.balanced_constraints.by_ts_penalty,
                                                             global_config.soft_constraints.similar_week_multiply,
                                                             banned_weeks_only,
@@ -1037,7 +1065,7 @@ class Solver:
                 return
 
         self.__balance_timeslots_in_current_day_every_week( source, 
-                                                            int(teacher_or_group.count_of_lessons/(self.university.get_weeks_count_for_day(day_i)/2)) <= 2, #global_config.soft_constraints.balanced_constraints.by_room_level_of_solve, 
+                                                            int(teacher_or_group.count_of_lessons/(self.university.get_weeks_count_for_day(day_i)/2)) <= 2,
                                                             global_config.soft_constraints.balanced_constraints.by_room_penalty,
                                                             global_config.soft_constraints.similar_week_multiply,
                                                             banned_weeks_only,

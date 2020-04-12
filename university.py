@@ -14,22 +14,9 @@ class Lesson:
         self.teacher_indexes=teacher_indexes
         self.self_index     = self_index
         self.should_be_after=[]
-        self.friend_lessons = set()
-        
-        self.total_sum_of_count_of_friend_lessons = 0
-
-    def add_friend_lesson(self, lesson_index, count_of_lessons):
-        self.friend_lessons.add(lesson_index)
-        self.total_sum_of_count_of_friend_lessons += count_of_lessons
-    
-    def get_friend_lessons_indexes(self):
-        return self.friend_lessons
 
     def get_count(self):
         return self.count
-
-    def get_count_with_friends(self):
-        return self.get_count() + self.total_sum_of_count_of_friend_lessons
 
     def __eq__(self, other):
         return self.full_name() == other.full_name()
@@ -87,9 +74,10 @@ class Room:
         return self.__str__()
 
 class GroupOrTeacherBase:
-    def __init__(self):
+    def __init__(self, self_index):
         self.banned_time_slots = set()
         self.count_of_lessons = 0
+        self.self_index = self_index
 
     def add_lessons(self, count):
         self.count_of_lessons += count
@@ -107,8 +95,8 @@ class GroupOrTeacherBase:
         return self
     
 class Group(GroupOrTeacherBase):
-    def __init__(self, group_name, size, group_type):
-        GroupOrTeacherBase.__init__(self)
+    def __init__(self, group_name, size, group_type, index):
+        GroupOrTeacherBase.__init__(self, index)
         self.group_name     = group_name
         self.size           = size
         self.group_type     = GroupType(group_type)
@@ -130,9 +118,9 @@ class Group(GroupOrTeacherBase):
             self.ban_time_slots(timeslot=ts)
 
 class Teacher(GroupOrTeacherBase):
-    def __init__(self, full_name):
+    def __init__(self, full_name, index):
         self.name = full_name
-        GroupOrTeacherBase.__init__(self)
+        GroupOrTeacherBase.__init__(self, index)
 
     def __str__(self):
         return self.name
@@ -157,6 +145,7 @@ class University:
         self.groups = []
         self.teachers = []
         self.__fill_study_days(start_from_day_of_week, end_by_day_of_week, weeks)
+        self.__friend_indexes = {}
 
     def add_room(self, corpus_number, room_number, room_type, size):
         for _ in range(2):
@@ -175,7 +164,7 @@ class University:
             if group.group_name == group_name:
                 raise Exception("WARNING: Group %s just exist! " % group_name)
         
-        self.groups.append(Group(group_name, size, group_type))
+        self.groups.append(Group(group_name, size, group_type, len(self.groups)))
         return self.groups[-1]
 
     def add_lesson(self, lesson_name, group_names, count, lesson_type, teachers):
@@ -226,7 +215,7 @@ class University:
             if teacher.name == name:
                 raise Exception('Teacher %s just exist!' % name)
 
-        self.teachers.append(Teacher(name))
+        self.teachers.append(Teacher(name, len(self.teachers)))
         return self.teachers[-1]
 
     def add_friends_lessons(self, list_of_lessons):
@@ -236,7 +225,35 @@ class University:
         for lesson in list_of_lessons:
             for other_lesson in list_of_lessons:
                 if lesson != other_lesson:
-                    lesson.add_friend_lesson(other_lesson.self_index, other_lesson.get_count())
+                    self.__friend_indexes.setdefault(lesson.self_index, set()).add(other_lesson.self_index)
+
+    def is_teacher_or_group_in_lesson(self, target_lesson_index, teacher_or_group_index, is_teacher):
+        current_lesson = self.lessons[target_lesson_index]
+        if is_teacher and teacher_or_group_index in current_lesson.teacher_indexes:
+            return True
+        elif not is_teacher and teacher_or_group_index in current_lesson.group_indexes:
+            return True
+
+        return False
+
+    def get_friend_indexes(self, target_lesson_index, teacher_or_group_index, is_teacher):
+        indexes = self.__friend_indexes.get(target_lesson_index, [])
+        return_indexes = []
+        for lesson_index in indexes:
+            if self.is_teacher_or_group_in_lesson(lesson_index, teacher_or_group_index, is_teacher):
+                return_indexes.append(lesson_index)
+
+        return return_indexes
+
+    def get_count_of_lessons_with_friends(self, target_lesson_index, teacher_or_group_index, is_teacher):
+        indexes = self.get_friend_indexes(target_lesson_index, teacher_or_group_index, is_teacher)
+
+        count = 0
+        for lesson_index in indexes+[target_lesson_index]:
+            lesson = self.lessons[lesson_index]
+            count += lesson.get_count()
+        return count
+
 
     def __str__(self):
         return "*****************************************************\n" + \

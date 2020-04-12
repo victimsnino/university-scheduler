@@ -63,6 +63,8 @@ def open_as_html(solution, university):
                     if not listt is None:
                         corpus, room, lesson, _type, teacher, other_groups = listt
                         add_text("C {0} r{1} {2} {3} {4}".format(corpus, room, lesson.lesson_name, str(_type).split('.')[1], university.teachers[teacher]))
+                        if other_groups:
+                            add_text("<b> \t With: {0}</b>".format(str(other_groups)))
                     del td2
                     del tr2
                 add_text("</table>")

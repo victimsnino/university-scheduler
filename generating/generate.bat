@@ -1,1 +1,0 @@
-python -m cogapp -d -o solver.py ./generators/solver_generator.py
