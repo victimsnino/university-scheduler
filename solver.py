@@ -9,6 +9,8 @@ import warnings
 import numpy as np
 import math
 
+from concurrent.futures import ThreadPoolExecutor 
+import multiprocessing
 
 timeslots_filter_cache = {}
 
@@ -41,11 +43,34 @@ def _add_soft_constraint(my_model, indexes_or_variables, sense, value, vals, pen
 
     _add_constraint(my_model, indexes_or_variables, sense, value, vals)
 
+def calculate_valid(data_regex, source):
+    def process_part(data_regex, temp_data):
+        return [i for i in temp_data if data_regex.match(i)]
+    
+    if len(source) < 800:
+        return process_part(data_regex, source)
+        
+    threads = 2
+    part = int(len(source)/threads)
+
+    futures = []
+    with ThreadPoolExecutor(threads) as executor:
+        for thread in range(threads):
+            min = thread*part
+            max = (thread+1)*part
+            if thread == threads-1:
+                max = len(source)
+            temp_source = source[min:max]
+            futures.append(executor.submit(process_part, data_regex, temp_source))
+        output = []
+        for res in futures:
+            output += res.result()
+    return output
+
 def _get_indexes_by_name(variables, search, is_just_regex = False, source = None):
     if is_just_regex == False:
         search = r'^' + search.replace('[', r'\[').replace(']', r'\]') + r'$'
 
-    indexes = []
     if source is None:
         source = variables.get_names()
 
@@ -58,10 +83,9 @@ def _get_indexes_by_name(variables, search, is_just_regex = False, source = None
     debug(search)
     data_regex = re.compile(search)
 
-    for name in source:
-        if not data_regex.match(name) is None:
-            indexes.append(variables.get_indices(name))
+    indexes = calculate_valid(data_regex, source)
 
+    #indexes = [source[i] for i, is_valid in enumerate(valid) if is_valid]
     cache['cached_var'] = indexes
 
     return copy.deepcopy(indexes)
@@ -70,20 +94,17 @@ def _get_indexes_of_timeslots_by_filter(variables, week = r'.*', day = r'.*', co
                                         room = r'.*', timeslot = r'.*', lesson = r'.*', group_id = r'.*', 
                                         type = r'.*', teacher_id = r'.*', source = None):
 
-    search = r'^'
-    search += week_prefix       + str(week)
-    search += day_prefix        + str(day)
-    search += corpus_prefix     + str(corpus)
-    search += room_prefix       + str(room)
-    search += timeslot_prefix   + str(timeslot)
-    search += lesson_prefix     + str(lesson)
-    search +=   group_prefix    + \
-                r'\[.*,? ?'     + \
-                str(group_id)   + \
-                r',? ?.*\]'
-    search += type_prefix       + str(type)
-    search += teacher_prefix    + str(teacher_id)
-    search += '$'
+    search = "".join([r'^', 
+                    week_prefix,        str(week), 
+                    day_prefix,         str(day), 
+                    corpus_prefix,      str(corpus), 
+                    room_prefix,        str(room), 
+                    timeslot_prefix,    str(timeslot), 
+                    lesson_prefix,      str(lesson), 
+                    group_prefix,       r'\[.*,? ?', str(group_id),r',? ?.*\]', 
+                    type_prefix,        str(type), 
+                    teacher_prefix,     str(teacher_id),
+                    '$'])
 
     if 'None' in search:
         raise Exception('None in search: '+search)
@@ -260,15 +281,13 @@ def get_timeslots(function):
         def get_indexes(self, lesson):
             indexes = _get_indexes_of_timeslots_by_filter(self.model.variables, source=source, week=week, day=day, corpus=corpus, room=room, timeslot=timeslot, lesson=lesson, type=type)
             if column:
-                temp = self.model.variables.get_names(indexes)
-                indexes = eval('_get_indexes_of_timeslots_by_filter(self.model.variables, source = temp, %s=ith)' % column)
+                indexes = eval('_get_indexes_of_timeslots_by_filter(self.model.variables, source = indexes, %s=ith)' % column)
                 ith # needed for capturing it inside functon
             return indexes
 
         indexes = get_indexes(self, lesson_i)
-        temp = self.model.variables.get_names(indexes)
 
-        function(self, source=temp, **kwargs)
+        function(self, source=indexes, **kwargs)
     return _decorator
 
 ##########################################
@@ -283,12 +302,10 @@ def get_corpus_tracker(function):
         ith         = kwargs.get('ith', None)
 
         indexes = _get_corpus__or_room_tracker_by_filter(self.model.variables, corpus=corpus, week=week, day=day, source=corpus_tracker_source)
-        temp = self.model.variables.get_names(indexes)
         if column:
-            indexes = eval('_get_corpus__or_room_tracker_by_filter(self.model.variables, source=temp, %s=ith)' % column)
-            temp = self.model.variables.get_names(indexes)
+            indexes = eval('_get_corpus__or_room_tracker_by_filter(self.model.variables, source=indexes, %s=ith)' % column)
 
-        function(self, corpus_tracker_source=temp, **kwargs)
+        function(self, corpus_tracker_source=indexes, **kwargs)
     return _decorator
 
 ##########################################
@@ -304,12 +321,10 @@ def get_room_tracker(function):
         ith         = kwargs.get('ith', None)
 
         indexes = _get_corpus__or_room_tracker_by_filter(self.model.variables, room=room, corpus=corpus, week=week, day=day, source=room_tracker_source)
-        temp = self.model.variables.get_names(indexes)
         if column:
-            indexes = eval('_get_corpus__or_room_tracker_by_filter(self.model.variables, room=room, source=temp, %s=ith)' % column)
-            temp = self.model.variables.get_names(indexes)
+            indexes = eval('_get_corpus__or_room_tracker_by_filter(self.model.variables, room=room, source=indexes, %s=ith)' % column)
 
-        function(self, room_tracker_source=temp, **kwargs)
+        function(self, room_tracker_source=indexes, **kwargs)
     return _decorator
 
 ###########################################
@@ -327,14 +342,12 @@ def get_lesson_tracker(function):
         def get_indexes(self, lesson_id):
             indexes = get_lesson_tracker_by_filter(self.model.variables, week=week, day=day, lesson_id=lesson_id, source=lesson_tracker_source)
             if column:
-                temp = self.model.variables.get_names(indexes)
-                indexes = eval('get_lesson_tracker_by_filter(self.model.variables, source=temp, %s=ith)' % column)
+                indexes = eval('get_lesson_tracker_by_filter(self.model.variables, source=indexes, %s=ith)' % column)
                 ith # needed for capturing it inside functon 
             return indexes
 
         indexes = get_indexes(self, lesson_id)
-        temp = self.model.variables.get_names(indexes)
-        function(self, lesson_tracker_source=temp, **kwargs)
+        function(self, lesson_tracker_source=indexes, **kwargs)
     return _decorator
 
 
@@ -498,8 +511,8 @@ class Solver:
         '''
         def get_sorted_indexes_and_costs(self, lesson_i):
             original_indexes = _get_indexes_of_timeslots_by_filter(self.model.variables, lesson=str(lesson_i))
-            original_indexes = sorted(original_indexes, key=lambda index: _calculate_cost_of_lesson_by_position(self.model.variables.get_names(index)))
-            original_costs   = [_calculate_cost_of_lesson_by_position(self.model.variables.get_names(i)) for i in original_indexes]
+            original_indexes = sorted(original_indexes, key=lambda index: _calculate_cost_of_lesson_by_position(index))
+            original_costs   = [_calculate_cost_of_lesson_by_position(i) for i in original_indexes]
             return original_indexes, original_costs
 
         def fill_at_any_moment_lections_ge_practices(self, original_costs, after_costs, original_indexes, should_be_after_indexes):
@@ -1104,7 +1117,7 @@ class Solver:
                                                 self.__soft_constraint_ban_windows_between_one_subject_during_day,
                                                 self.__soft_constraint_lessons_balanced_during_module_by_timeslots, 
                                                 self.__soft_constraint_lessons_balanced_during_module_by_rooms,
-                                                self.model.solve
+                                               # self.model.solve
                                                 ]):
             print()
             print(method.__name__)

@@ -10,13 +10,9 @@ SLOW    = 3
 class BalancedConstraints:
     def __init__(self):
         self.by_lesson_penalty              = 1
-        self.by_lesson_level_of_solve       = FAST
-
-        self.by_ts_penalty                  = 0.1
-        self.by_ts_level_of_solve           = SLOW
-
+        self.by_ts_penalty                  = 0
+        #[DEPRECATED]
         self.by_room_penalty                = 0
-        self.by_room_level_of_solve         = SLOW
 
 class SoftConstraints:
     def __init__(self):
@@ -51,7 +47,7 @@ class Config:
         self.reset()
         
     def reset(self):
-        self.timelimit_for_solve            = 45
+        self.timelimit_for_solve            = 60
         self.bachelor_time_slots_per_day    = 6
         self.magistracy_time_slots_per_day  = 2
         # Expected, that lessons for magistracy AFTER bachelors

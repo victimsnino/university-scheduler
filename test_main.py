@@ -62,7 +62,7 @@ def test_ban_changing_corpus():
     fill(university)
 
     solver = Solver(university)
-    res, _ = solver.solve()
+    res, output = solver.solve()
     assert not res
     
     university = University(0,1,1)
@@ -515,14 +515,15 @@ def test_full_module_for_second_course():
     practice1 = university.add_lesson('Анализ данных', ['17bi-1'], weeks, RoomType.PRACTICE, ['Казаков']).should_be_after_lessons(lect)
     university.add_friends_lessons([lect, practice1])
 
-    university.add_lesson('Английский язык', ['17bi-1', '17bi-2'],  2*weeks, RoomType.LECTURE, ['Фролова'])
-    university.add_lesson('Английский язык1', ['17bi-1', '17bi-2'], 2*weeks, RoomType.LECTURE, ['Фролова'])
+    university.add_lesson('Английский язык', ['17bi-1', '17bi-2'],  2*weeks, RoomType.PRACTICE, ['Фролова'])
+    university.add_lesson('Английский язык1', ['17bi-1', '17bi-2'], 2*weeks, RoomType.PRACTICE, ['Фролова'])
 
     solver = Solver(university)
     res, output = solver.solve()
     assert res
     open_as_html(output, university)
 
+    return
     for group, weeks in sorted(output.items()):
         ts_by_days = {}
         for week, days in sorted(weeks.items()):
