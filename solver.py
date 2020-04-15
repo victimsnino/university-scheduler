@@ -9,6 +9,7 @@ import warnings
 import numpy as np
 import math
 
+from id_wrapper import TimeSlotWrapper
 from concurrent.futures import ThreadPoolExecutor 
 import multiprocessing
 
@@ -90,25 +91,31 @@ def _get_indexes_by_name(variables, search, is_just_regex = False, source = None
 
     return copy.deepcopy(indexes)
 
-def _get_indexes_of_timeslots_by_filter(variables, week = r'.*', day = r'.*', corpus = r'.*', 
+def _get_indexes_of_timeslots_by_filter(solver, week = r'.*', day = r'.*', corpus = r'.*', 
                                         room = r'.*', timeslot = r'.*', lesson = r'.*', group_id = r'.*', 
                                         type = r'.*', teacher_id = r'.*', source = None):
 
-    search = "".join([r'^', 
-                    week_prefix,        str(week), 
-                    day_prefix,         str(day), 
-                    corpus_prefix,      str(corpus), 
-                    room_prefix,        str(room), 
-                    timeslot_prefix,    str(timeslot), 
-                    lesson_prefix,      str(lesson), 
-                    group_prefix,       r'\[.*,? ?', str(group_id),r',? ?.*\]', 
-                    type_prefix,        str(type), 
-                    teacher_prefix,     str(teacher_id),
-                    '$'])
+    target = TimeSlotWrapper(week, day, corpus, room, timeslot, lesson, group_id, type, teacher_id)
+    if source is None:
+        source = sorted(solver.timeslots.keys())
 
-    if 'None' in search:
-        raise Exception('None in search: '+search)
-    return _get_indexes_by_name(variables, search, True, source)
+    return [index for index in source if solver.timeslots[index] == target]
+    
+    # search = "".join([r'^', 
+    #                 week_prefix,        str(week), 
+    #                 day_prefix,         str(day), 
+    #                 corpus_prefix,      str(corpus), 
+    #                 room_prefix,        str(room), 
+    #                 timeslot_prefix,    str(timeslot), 
+    #                 lesson_prefix,      str(lesson), 
+    #                 group_prefix,       r'\[.*,? ?', str(group_id),r',? ?.*\]', 
+    #                 type_prefix,        str(type), 
+    #                 teacher_prefix,     str(teacher_id),
+    #                 '$'])
+
+    # if 'None' in search:
+    #     raise Exception('None in search: '+search)
+    # return _get_indexes_by_name(variables, search, True, source)
                         
 def _get_corpus__or_room_tracker_by_filter(variables, room = None, corpus = r'.*', week = r'.*', day = r'.*', group_id = None, teacher_id = None, source = None):
     search = r'^'
@@ -279,9 +286,9 @@ def get_timeslots(function):
         
         @_get_indexes_with_friends(friend_indexes)
         def get_indexes(self, lesson):
-            indexes = _get_indexes_of_timeslots_by_filter(self.model.variables, source=source, week=week, day=day, corpus=corpus, room=room, timeslot=timeslot, lesson=lesson, type=type)
+            indexes = _get_indexes_of_timeslots_by_filter(self, source=source, week=week, day=day, corpus=corpus, room=room, timeslot=timeslot, lesson=lesson, type=type)
             if column:
-                indexes = eval('_get_indexes_of_timeslots_by_filter(self.model.variables, source = indexes, %s=ith)' % column)
+                indexes = eval('_get_indexes_of_timeslots_by_filter(self, source = indexes, %s=ith)' % column)
                 ith # needed for capturing it inside functon
             return indexes
 
@@ -366,7 +373,8 @@ class Solver:
         
         global timeslots_filter_cache
         timeslots_filter_cache.clear()
-    
+        self.timeslots = {}
+
     def __fill_lessons_to_time_slots(self):
         ''' 
         Fill base variables from our university structure to solver.
@@ -392,6 +400,8 @@ class Solver:
                                                     types=[self.model.variables.type.binary],
                                                     names=[time_slot_format % (week_i, day_i, corpus_i, room.room_number, time_slot, lesson.self_index, 
                                                                                 str(lesson.group_indexes), str(lesson.lesson_type), teacher_i)])[0])
+                                self.timeslots[indexes[-1]] = TimeSlotWrapper(week_i, day_i, corpus_i, room.room_number, time_slot, lesson.self_index, 
+                                                                                str(lesson.group_indexes), str(lesson.lesson_type), teacher_i)
                             
                         # each time-slot can have only 1 lesson
                         if len(indexes) != 0:
@@ -456,7 +466,7 @@ class Solver:
         Add dummy variables for teachers tracking (which teachers marked for current lesson during module)
         '''
         for teacher_i in lesson.teacher_indexes:
-            lections_indexes = _get_indexes_of_timeslots_by_filter(self.model.variables, source=source, teacher_id=teacher_i)
+            lections_indexes = _get_indexes_of_timeslots_by_filter(self, source=source, teacher_id=teacher_i)
             self.__fill_variables_helper(teachers_per_lesson_format % (lesson.self_index, teacher_i), lections_indexes, lesson.get_count())
 
     @_for_lessons
@@ -510,7 +520,7 @@ class Solver:
         For example, practice should be after lection. Therefore we should track it.
         '''
         def get_sorted_indexes_and_costs(self, lesson_i):
-            original_indexes = _get_indexes_of_timeslots_by_filter(self.model.variables, lesson=str(lesson_i))
+            original_indexes = _get_indexes_of_timeslots_by_filter(self, lesson=str(lesson_i))
             original_indexes = sorted(original_indexes, key=lambda index: _calculate_cost_of_lesson_by_position(index))
             original_costs   = [_calculate_cost_of_lesson_by_position(i) for i in original_indexes]
             return original_indexes, original_costs
@@ -567,13 +577,13 @@ class Solver:
             elif timeslot >= global_config.time_slots_per_day_available:
                 continue
 
-            indexes = _get_indexes_of_timeslots_by_filter(self.model.variables, week=week, day=day, timeslot=timeslot, source=source)
+            indexes = _get_indexes_of_timeslots_by_filter(self, week=week, day=day, timeslot=timeslot, source=source)
             _add_constraint(self.model, indexes, '==', 0)
 
     def __ban_windows(self, source, penalty):
         indexes_by_ts = []
         for timeslot in range(global_config.time_slots_per_day_available):
-            indexes_by_ts.append(_get_indexes_of_timeslots_by_filter(self.model.variables, source=source, timeslot=timeslot))
+            indexes_by_ts.append(_get_indexes_of_timeslots_by_filter(self, source=source, timeslot=timeslot))
 
         # select size of block for checking
         for max_timeslots in range(3, global_config.time_slots_per_day_available+1):
@@ -884,7 +894,7 @@ class Solver:
         if global_config.soft_constraints.last_day_in_week_penalty <= 0 or global_config.study_days <= 1:
             return
 
-        indexes = _get_indexes_of_timeslots_by_filter(self.model.variables, day=global_config.study_days-1)
+        indexes = _get_indexes_of_timeslots_by_filter(self, day=global_config.study_days-1)
         _add_soft_constraint(self.model, copy.deepcopy(indexes), '==', 0, [1]*len(indexes), global_config.soft_constraints.last_day_in_week_penalty, -1, "LastDay")
     
     @_for_groups_or_teachers
@@ -928,7 +938,7 @@ class Solver:
             if penalty <= 0:
                 return
 
-            indexes = _get_indexes_of_timeslots_by_filter(self.model.variables, timeslot=timeslot)
+            indexes = _get_indexes_of_timeslots_by_filter(self, timeslot=timeslot)
             _add_soft_constraint(self.model, copy.deepcopy(indexes), '==', 0, [1]*len(indexes), penalty, -1, "LastTSinDay " + str(timeslot) + " " + str(teacher_or_group))
 
         for ts, penalty in enumerate(personal_penalties):
@@ -942,7 +952,7 @@ class Solver:
             if penalty <= 0:
                 return
 
-            indexes = _get_indexes_of_timeslots_by_filter(self.model.variables, timeslot=timeslot)
+            indexes = _get_indexes_of_timeslots_by_filter(self, timeslot=timeslot)
             _add_soft_constraint(self.model, copy.deepcopy(indexes), '==', 0, [1]*len(indexes), penalty, -1, "LastTSinDay")
 
         for ts, penalty in enumerate(global_config.soft_constraints.timeslots_penalty):
