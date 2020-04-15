@@ -48,8 +48,8 @@ def calculate_valid(data_regex, source):
     def process_part(data_regex, temp_data):
         return [i for i in temp_data if data_regex.match(i)]
     
-    if len(source) < 800:
-        return process_part(data_regex, source)
+    #if len(source) < 800:
+    return process_part(data_regex, source)
         
     threads = 2
     part = int(len(source)/threads)
@@ -91,31 +91,21 @@ def _get_indexes_by_name(variables, search, is_just_regex = False, source = None
 
     return copy.deepcopy(indexes)
 
-def _get_indexes_of_timeslots_by_filter(solver, week = r'.*', day = r'.*', corpus = r'.*', 
-                                        room = r'.*', timeslot = r'.*', lesson = r'.*', group_id = r'.*', 
-                                        type = r'.*', teacher_id = r'.*', source = None):
+def _get_indexes_of_timeslots_by_filter(solver, week = -1, day = -1, corpus = -1, 
+                                        room = -1, timeslot = -1, lesson = -1, group_id = list(), 
+                                        type = -1, teacher_id = -1, source = None):
 
     target = TimeSlotWrapper(week, day, corpus, room, timeslot, lesson, group_id, type, teacher_id)
     if source is None:
-        source = sorted(solver.timeslots.keys())
+        source = list(solver.timeslots.keys())
 
-    return [index for index in source if solver.timeslots[index] == target]
+    out = []
+    for index in source:
+        if index in solver.timeslots and solver.timeslots[index] == target:
+            out.append(index)
+            pass
     
-    # search = "".join([r'^', 
-    #                 week_prefix,        str(week), 
-    #                 day_prefix,         str(day), 
-    #                 corpus_prefix,      str(corpus), 
-    #                 room_prefix,        str(room), 
-    #                 timeslot_prefix,    str(timeslot), 
-    #                 lesson_prefix,      str(lesson), 
-    #                 group_prefix,       r'\[.*,? ?', str(group_id),r',? ?.*\]', 
-    #                 type_prefix,        str(type), 
-    #                 teacher_prefix,     str(teacher_id),
-    #                 '$'])
-
-    # if 'None' in search:
-    #     raise Exception('None in search: '+search)
-    # return _get_indexes_by_name(variables, search, True, source)
+    return out[:len(out)]
                         
 def _get_corpus__or_room_tracker_by_filter(variables, room = None, corpus = r'.*', week = r'.*', day = r'.*', group_id = None, teacher_id = None, source = None):
     search = r'^'
@@ -265,13 +255,13 @@ def _get_indexes_with_friends(list_of_friends):
 def get_timeslots(function):
     @wraps(function)
     def _decorator(self, source=None, **kwargs):
-        week            = kwargs.get('week_i', r'.*')
-        day             = kwargs.get('day_i', r'.*')
-        corpus          = kwargs.get('corpus_i', r'.*')
-        room            = kwargs.get('room_i', r'.*')
-        timeslot        = kwargs.get('timeslot', r'.*')
-        lesson_i        = kwargs.get('lesson_i', r'.*')
-        type            = kwargs.get('type', r'.*')
+        week            = kwargs.get('week_i', -1)
+        day             = kwargs.get('day_i', -1)
+        corpus          = kwargs.get('corpus_i', -1)
+        room            = kwargs.get('room_i', -1)
+        timeslot        = kwargs.get('timeslot', -1)
+        lesson_i        = kwargs.get('lesson_i', -1)
+        type            = kwargs.get('type', -1)
         column          = kwargs.get('column', None)
         ith             = kwargs.get('ith', None)
         friends_enabled = kwargs.get('friends_enabled', False)
@@ -394,14 +384,15 @@ class Solver:
                                 continue
 
                             for teacher_i in lesson.teacher_indexes:
+                                name = time_slot_format % (week_i, day_i, corpus_i, room.room_number, time_slot, lesson.self_index, 
+                                                                                str(lesson.group_indexes), str(lesson.lesson_type), teacher_i)
                                 indexes.append(self.model.variables.add(obj=[0],
                                                     lb=[0], 
                                                     ub=[1],
                                                     types=[self.model.variables.type.binary],
-                                                    names=[time_slot_format % (week_i, day_i, corpus_i, room.room_number, time_slot, lesson.self_index, 
-                                                                                str(lesson.group_indexes), str(lesson.lesson_type), teacher_i)])[0])
-                                self.timeslots[indexes[-1]] = TimeSlotWrapper(week_i, day_i, corpus_i, room.room_number, time_slot, lesson.self_index, 
-                                                                                str(lesson.group_indexes), str(lesson.lesson_type), teacher_i)
+                                                    names=[name])[0])
+                                self.timeslots[name] = TimeSlotWrapper(week_i, day_i, corpus_i, room.room_number, time_slot, lesson.self_index, 
+                                                                                lesson.group_indexes, lesson.lesson_type, teacher_i)
                             
                         # each time-slot can have only 1 lesson
                         if len(indexes) != 0:
@@ -563,17 +554,17 @@ class Solver:
     def __local_constraint_teacher_or_group_has_banned_ts(self, source = None, teacher_or_group = None, **kwargs):
         for week, day, timeslot in teacher_or_group.banned_time_slots:
             if week is None:
-                week = r'.*'
+                week = -1
             elif week >= self.university.study_weeks:
                 continue
 
             if day is None:
-                day = r'.*'
+                day = -1
             elif day >= global_config.study_days:
                 continue
 
             if timeslot is None:
-                timeslot = r'.*'
+                timeslot = -1
             elif timeslot >= global_config.time_slots_per_day_available:
                 continue
 
@@ -1133,6 +1124,7 @@ class Solver:
             print(method.__name__)
             method()
        # print(self.temp)
+        return False
         debug(self.model.variables.get_names())
         output = self.__parse_output_and_create_schedule()
         return not output is None, output
