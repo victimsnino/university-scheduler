@@ -410,126 +410,6 @@ def test_similar_room_every_week():
         for day in university.study_days:
             assert len(ts_by_days.get(day, [])) <= 1
 
-def test_full_module_for_two_groups():
-    global_config.soft_constraints.max_lessons_per_day = 3
-    weeks = 12
-    university = University(start_from_day_of_week = 3, end_by_day_of_week=1,weeks=weeks)
-    
-    LVOV = 1
-    RADIK = 2
-
-    university.add_room(RADIK, 206, RoomType.LECTURE | RoomType.PRACTICE, 40) 
-    university.add_room(RADIK, 303, RoomType.COMPUTER,  30)
-    university.add_room(LVOV,  309, RoomType.PRACTICE,  25) 
-
-    university.add_group("16-pmi", 22, GroupType.BACHELOR)#.ban_time_slots(day=3, week=2)
-    #university.add_group("16-pi", 30, GroupType.BACHELOR) 
-
-
-    university.add_teacher('Колданов')
-    university.add_teacher('Бабкина')
-    university.add_teacher('Фролова')
-    university.add_teacher('Слащинин')
-    university.add_teacher('Зеленов')
-
-    lect = university.add_lesson("Случайные процессы", ['16-pmi'], 11, RoomType.LECTURE,  ['Колданов'])
-    practice = university.add_lesson("Случайные процессы", ['16-pmi'], 11, RoomType.PRACTICE,  ['Колданов'])
-    practice.should_be_after_lessons(lect)
-
-    university.add_lesson("Научный семинар", ['16-pmi'], 10, RoomType.COMPUTER,  ['Бабкина'])
-    university.add_lesson("Академическое письмо", ['16-pmi'], 12, RoomType.PRACTICE,  ['Фролова'])
-    university.add_lesson("Компьютерная лингвистика", ['16-pmi'], 22, RoomType.LECTURE,  ['Слащинин'])
-    university.add_lesson("Интернет вещей", ['16-pmi'], 22, RoomType.COMPUTER,  ['Зеленов'])
-  #  university.add_lesson('Temp', ['16-pmi'], 6, RoomType.COMPUTER, ['Зеленов'])
-    
-    university.add_friends_lessons([lect, practice])
-    solver = Solver(university)
-    res, output = solver.solve()
-    assert res
-
-    open_as_html(output, university)
-
-    for group, weeks in sorted(output.items()):
-        for _, days in sorted(weeks.items()):
-            for _, tss in sorted(days.items()):
-                assert len(tss) <= global_config.soft_constraints.max_lessons_per_day
-
-def test_full_module_for_second_course():
-    #global_config.soft_constraints.minimize_count_of_rooms_per_day_penalty = 0
-    #global_config.timelimit_for_solve = 0
-    weeks = 2
-    university = University(weeks=weeks)
-
-    university.add_room(1, 147, RoomType.PRACTICE, 100)
-    university.add_room(1, 146, RoomType.PRACTICE, 100)
-    university.add_room(1, 224, RoomType.LECTURE | RoomType.PRACTICE, 100)
-    university.add_room(1, 202, RoomType.PRACTICE, 100)
-    university.add_room(1, 301, RoomType.PRACTICE, 100)
-    university.add_room(1, 306, RoomType.PRACTICE, 100)
-
-    university.add_room(2, 216, RoomType.PRACTICE, 100)
-    university.add_room(2, 402, RoomType.LECTURE | RoomType.PRACTICE, 100)
-    
-
-    university.add_group('17bi-1', 15, GroupType.BACHELOR)
-    university.add_group('17bi-2', 15, GroupType.BACHELOR)
-
-    university.add_teacher('Демкин')
-    university.add_teacher('Семенов')
-    university.add_teacher('Куранова')
-    university.add_teacher('Колданов')
-    university.add_teacher('Фролова')
-    university.add_teacher('Казаков')
-    university.add_teacher('Калягин')
-    university.add_teacher('Асеева')
-
-    lect = university.add_lesson('Алгоритмы и структуры данных', ['17bi-1', '17bi-2'], weeks, RoomType.LECTURE, ['Демкин'])
-    practice1 = university.add_lesson('Алгоритмы и структуры данных', ['17bi-1'], weeks, RoomType.PRACTICE, ['Демкин']).should_be_after_lessons(lect)
-    practice2 = university.add_lesson('Алгоритмы и структуры данных', ['17bi-2'], weeks, RoomType.PRACTICE, ['Демкин']).should_be_after_lessons(lect)
-
-    university.add_friends_lessons([lect, practice1])
-    university.add_friends_lessons([lect, practice2])
-
-    lect = university.add_lesson('Объектно -ориентированное программирование', ['17bi-1', '17bi-2'], weeks/2, RoomType.LECTURE, ['Демкин'])
-    practice1 = university.add_lesson('Объектно -ориентированное программирование', ['17bi-1'], weeks/2, RoomType.PRACTICE, ['Демкин']).should_be_after_lessons(lect)
-    practice2 = university.add_lesson('Объектно -ориентированное программирование', ['17bi-2'], weeks/2, RoomType.PRACTICE, ['Демкин']).should_be_after_lessons(lect)
-
-    university.add_friends_lessons([lect, practice1])
-    university.add_friends_lessons([lect, practice2])
-
-    lect = university.add_lesson('Теория вероятностей', ['17bi-1', '17bi-2'], weeks, RoomType.LECTURE, ['Колданов']).should_be_after_lessons(lect)
-    practice1 = university.add_lesson('Теория вероятностей', ['17bi-1'], weeks, RoomType.PRACTICE, ['Семенов']).should_be_after_lessons(lect)
-    practice2 = university.add_lesson('Теория вероятностей', ['17bi-2'], weeks, RoomType.PRACTICE, ['Семенов']).should_be_after_lessons(lect)
-
-    university.add_friends_lessons([lect, practice1])
-    university.add_friends_lessons([lect, practice2])
-
-    lect = university.add_lesson('Моделирование процессов и систем', ['17bi-1', '17bi-2'], weeks, RoomType.LECTURE, ['Асеева'])
-    practice1 = university.add_lesson('Моделирование процессов и систем', ['17bi-1'], weeks, RoomType.PRACTICE, ['Куранова']).should_be_after_lessons(lect)
-    practice2 = university.add_lesson('Моделирование процессов и систем', ['17bi-2'], weeks, RoomType.PRACTICE, ['Куранова']).should_be_after_lessons(lect)
-
-    university.add_friends_lessons([lect, practice1])
-    university.add_friends_lessons([lect, practice2])
-
-    lect = university.add_lesson('Анализ данных', ['17bi-1', '17bi-2'], weeks, RoomType.LECTURE, ['Калягин'])
-    practice1 = university.add_lesson('Анализ данных', ['17bi-1'], weeks, RoomType.PRACTICE, ['Казаков']).should_be_after_lessons(lect)
-    university.add_friends_lessons([lect, practice1])
-
-    university.add_lesson('Английский язык', ['17bi-1', '17bi-2'],  2*weeks, RoomType.PRACTICE, ['Фролова'])
-    university.add_lesson('Английский язык1', ['17bi-1', '17bi-2'], 2*weeks, RoomType.PRACTICE, ['Фролова'])
-
-    solver = Solver(university)
-    res, output = solver.solve()
-    assert res
-    open_as_html(output, university)
-
-    return
-    for group, weeks in sorted(output.items()):
-        ts_by_days = {}
-        for week, days in sorted(weeks.items()):
-            for day, tss in sorted(days.items()):
-                assert len(tss) == 0 or len(tss) >= 2
-
 def test_no_lessons_in_saturday():
     university = University(weeks=4)
     university.add_room(1, 1, RoomType.LECTURE, 10)
@@ -563,36 +443,34 @@ def test_no_lessons_first_timeslot():
     university.add_room(1, 1, RoomType.LECTURE, 10)
     university.add_group('Group', 1, GroupType.BACHELOR)
     university.add_teacher('Teacher').ban_time_slots(day=2).ban_time_slots(day=3).ban_time_slots(day=1).ban_time_slots(timeslot=2)
-    university.add_lesson('Lesson1', ['Group'], 9, RoomType.LECTURE, ['Teacher'])
-    university.add_lesson('Lesson2', ['Group'], 9, RoomType.LECTURE, ['Teacher'])
-    university.add_lesson('Lesson3', ['Group'], 9, RoomType.LECTURE, ['Teacher'])
+    university.add_lesson('Lesson1', ['Group'], 8, RoomType.LECTURE, ['Teacher'])
+    university.add_lesson('Lesson2', ['Group'], 8, RoomType.LECTURE, ['Teacher'])
+    university.add_lesson('Lesson3', ['Group'], 8, RoomType.LECTURE, ['Teacher'])
 
     solver = Solver(university)
     res, out = solver.solve()
     assert res
     
-    count_of_last_timeslots = 0
+    open_as_html(out, university)
+
     for group, weeks in sorted(out.items()):
         for week, days in sorted(weeks.items()):
             for day, tss in sorted(days.items()):
                 for ts, data in sorted(tss.items()):
                     assert ts > 0
-                    if ts == global_config.bachelor_time_slots_per_day-1:
-                        count_of_last_timeslots += 1
-    assert count_of_last_timeslots == 3
 
 def test_lessons_grouped_by_lesson_id_during_week():
     university = University(weeks=4)
-    university.add_room(1, 1, RoomType.LECTURE, 10)
+    university.add_room(1, 1, RoomType.PRACTICE, 10)
     university.add_group('Group', 1, GroupType.BACHELOR).ban_time_slots(day=0)
     university.add_teacher('Teacher').ban_time_slots(day=1).ban_time_slots(day=2)
-    university.add_lesson('Lesson1', ['Group'], 12, RoomType.LECTURE, ['Teacher'])
-    university.add_lesson('Lesson2', ['Group'], 12, RoomType.LECTURE, ['Teacher'])
-    university.add_lesson('Lesson3', ['Group'], 12, RoomType.LECTURE, ['Teacher'])
+    university.add_lesson('Lesson1', ['Group'], 12, RoomType.PRACTICE, ['Teacher'])
+    university.add_lesson('Lesson2', ['Group'], 12, RoomType.PRACTICE, ['Teacher'])
+    university.add_lesson('Lesson3', ['Group'], 12, RoomType.PRACTICE, ['Teacher'])
 
     solver = Solver(university)
     res, out = solver.solve()
-   # open_as_html(out, university)
+    #open_as_html(out, university)
 
     for group, weeks in sorted(out.items()):
         for week, days in sorted(weeks.items()):
@@ -605,12 +483,12 @@ def test_lessons_grouped_by_lesson_id_during_week():
 
 def test_lessons_grouped_by_lesson_id_during_day():
     university = University(weeks=4)
-    university.add_room(1, 1, RoomType.LECTURE, 10)
+    university.add_room(1, 1, RoomType.PRACTICE, 10)
     university.add_group('Group', 1, GroupType.BACHELOR).ban_time_slots(day=0)
     university.add_teacher('Teacher').ban_time_slots(day=1).ban_time_slots(day=2)
-    university.add_lesson('Lesson1', ['Group'], 16, RoomType.LECTURE, ['Teacher'])
-    university.add_lesson('Lesson2', ['Group'], 16, RoomType.LECTURE, ['Teacher'])
-    university.add_lesson('Lesson3', ['Group'], 16, RoomType.LECTURE, ['Teacher'])
+    university.add_lesson('Lesson1', ['Group'], 16, RoomType.PRACTICE, ['Teacher'])
+    university.add_lesson('Lesson2', ['Group'], 16, RoomType.PRACTICE, ['Teacher'])
+    university.add_lesson('Lesson3', ['Group'], 16, RoomType.PRACTICE, ['Teacher'])
 
     solver = Solver(university)
     res, out = solver.solve()
@@ -631,18 +509,18 @@ def test_lessons_balanced_every_week_every_day():
     global_config.soft_constraints.timeslots_penalty = [0,0,0,0,0,0,0,0]
 
     university = University(weeks=3)
-    university.add_room(1, 1, RoomType.LECTURE, 10)
-    university.add_group('Group', 1, GroupType.BACHELOR).ban_time_slots(day=0)
+    university.add_room(1, 1, RoomType.PRACTICE, 10)
+    university.add_group('Group', 1, GroupType.BACHELOR)
     university.add_teacher('Teacher').ban_time_slots(day=1).ban_time_slots(day=2)
-    university.add_lesson('Lesson1', ['Group'], 3, RoomType.LECTURE, ['Teacher'])
-    university.add_lesson('Lesson2', ['Group'], 5, RoomType.LECTURE, ['Teacher'])
-    university.add_lesson('Lesson3', ['Group'], 4, RoomType.LECTURE, ['Teacher'])
-    university.add_lesson('Lesson4', ['Group'], 3, RoomType.LECTURE, ['Teacher'])
+    university.add_lesson('Lesson1', ['Group'], 3, RoomType.PRACTICE, ['Teacher'])
+    university.add_lesson('Lesson2', ['Group'], 5, RoomType.PRACTICE, ['Teacher'])
+    university.add_lesson('Lesson3', ['Group'], 4, RoomType.PRACTICE, ['Teacher'])
+    university.add_lesson('Lesson4', ['Group'], 3, RoomType.PRACTICE, ['Teacher'])
 
 
     solver = Solver(university)
     res, out = solver.solve()
-   # open_as_html(out, university)
+    open_as_html(out, university)
 
     for group, weeks in sorted(out.items()):
         lessons_by_day = {}
@@ -685,7 +563,6 @@ def test_friend_lessons():
                     uniq_lessons.add(lesson.self_index)
                 assert len(uniq_lessons) == 0 or len(uniq_lessons) == 2
 
-
 def test_friend_lessons_diff_groups_diff_lections():
     university = University(weeks=2)
     university.add_room(1, 1, RoomType.LECTURE | RoomType.PRACTICE, 10)
@@ -718,7 +595,6 @@ def test_friend_lessons_diff_groups_diff_lections():
                     corpus, room, lesson, _type, teacher, other_groups = data
                     uniq_lessons.add(lesson.self_index)
                 assert len(uniq_lessons) == 0 or len(uniq_lessons) == 2
-
 
 def test_friend_lessons_diff_groups_common_lecture():
     global_config.timelimit_for_solve = 0

@@ -60,7 +60,7 @@ def open_as_html(solution, university):
                     td2 = td(False)
                     listt = weeks.get(week, {}).get(day, {}).get(ts, None)
                     add_text(str(ts+1) + " ")
-                    if not listt is None:
+                    if listt:
                         corpus, room, lesson, _type, teacher, other_groups = listt
                         add_text("C {0} r{1} {2} {3} {4}".format(corpus, room, lesson.lesson_name, str(_type).split('.')[1], university.teachers[teacher]))
                         if other_groups:

@@ -10,7 +10,7 @@ SLOW    = 3
 class BalancedConstraints:
     def __init__(self):
         self.by_lesson_penalty              = 1
-        self.by_ts_penalty                  = 0
+        self.by_ts_penalty                  = 1
         #[DEPRECATED]
         self.by_room_penalty                = 0
 
@@ -30,7 +30,7 @@ class SoftConstraints:
         # nobody wants to study on saturday
         self.last_day_in_week_penalty                       = 0.1
         
-        self.timeslots_penalty                              = [1, 0, 0, 0, 0.11, 1.1, -1, -1] # must be like a gradient of penalties without gaps. 
+        self.timeslots_penalty                              = [1, 0, 0, 0, 0.1, 1.1, -1, -1] # must be like a gradient of penalties without gaps. 
 
         self.min_count_of_specific_lessons_during_day       = 2  # as a result, it tries to group at least by X lessons by day
         self.min_count_of_specific_lessons_penalty          = 1
@@ -47,7 +47,7 @@ class Config:
         self.reset()
         
     def reset(self):
-        self.timelimit_for_solve            = 60
+        self.timelimit_for_solve            = 0
         self.bachelor_time_slots_per_day    = 6
         self.magistracy_time_slots_per_day  = 2
         # Expected, that lessons for magistracy AFTER bachelors
