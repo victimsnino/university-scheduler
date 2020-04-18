@@ -26,6 +26,7 @@ def test_model():
                             ub=[10, 10])
     add_constraint(model, [1], '<=', 2)
     add_constraint(model, [0], '>=', 2)
+    
     model.solve()
     assert [2.0, 2.0] == model.solution.get_values()
 

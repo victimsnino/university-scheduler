@@ -35,16 +35,42 @@ def add_constraint(my_model, indexes_or_variables, sense, value, val = None):
                                     senses = senses[valid_operations.index(sense)],
                                     rhs = [value])
 
+def add_variables(my_model, obj=0, ub=1, names=None):
+    ub   = ub     if isinstance(ub, list)   else [ub] 
+    obj  = obj    if isinstance(obj, list)  else [obj]
+    names = names if isinstance(names, list) else [names]
+
+    non_standard_size = 1
+    for temp in [ub, obj, names]:
+        if len(temp) != non_standard_size and len(temp) != 1:
+            if non_standard_size != 1:
+                raise Exception("Different sizes of arguments!")
+            non_standard_size = len(temp)
+    
+    ub    = ub    if len(ub) == non_standard_size    else ub*non_standard_size
+    obj   = obj   if len(obj) == non_standard_size   else obj*non_standard_size
+    names = names if len(names) == non_standard_size else names*non_standard_size
+
+
+    types = [my_model.variables.type.binary  if ub_t == 1 else my_model.variables.type.integer for ub_t in ub  ]
+    lb = [0]*non_standard_size
+
+    debug(",".join([str(obj), str(lb), str(ub), str(types), str(names)]))
+    return list(my_model.variables.add(obj=obj,
+                                  lb=lb,
+                                  ub=ub,
+                                  types=types,
+                                  names=names))
+
 def add_soft_constraint(my_model, indexes_or_variables, sense, value, vals, penalty, val_for_new_variable, name=None, ub = None):
     if penalty > 0: # A.K.A soft constraint
-        indexes_or_variables.append(my_model.variables.add(obj=[penalty],
-                                                           lb=[0],
-                                                           ub =[ub] if ub else None,
-                                                           names=[name] if name else None,
-                                                           types=[my_model.variables.type.integer])[0])
+        indexes_or_variables += add_variables(my_model, obj=[penalty], 
+                                                        ub =[ub] if ub else [cplex.infinity], 
+                                                        names=[name] if name else None)
         vals.append(val_for_new_variable)
 
     add_constraint(my_model, indexes_or_variables, sense, value, vals)
+
 
 def calculate_valid(data_regex, source):
     def process_part(data_regex, temp_data):
@@ -393,11 +419,7 @@ class Solver:
                             for teacher_i in lesson.teacher_indexes:
                                 wrapper = TimeSlotWrapper(week_i, day_i, corpus_i, room.room_number, time_slot, lesson.self_index, 
                                                                                 lesson.group_indexes, lesson.lesson_type, teacher_i)
-                                indexes.append(self.model.variables.add(obj=[0],
-                                                    lb=[0], 
-                                                    ub=[1],
-                                                    types=[self.model.variables.type.binary],
-                                                    names=[str(wrapper)])[0])
+                                indexes += add_variables(self.model, names=[str(wrapper)])
                                 self.timeslots[indexes[-1]] = wrapper
 
                             
@@ -406,11 +428,7 @@ class Solver:
                             add_constraint(self.model, indexes, '<=', 1)
 
     def __fill_variables_helper(self, name, source, max_limit):
-        tracker_index  = [self.model.variables.add(obj=[0],
-                                                    lb=[0], 
-                                                    ub=[1],
-                                                    types=[self.model.variables.type.binary],
-                                                    names=[name])[0]]
+        tracker_index  = add_variables(self.model, names=[name])
 
         add_constraint(self.model, source + tracker_index, '<=', 0, 
                         [1]*len(source)+[-1*max_limit])
@@ -663,11 +681,7 @@ class Solver:
             if lessons > 0 and lessons < min_lessons:
                 penalty = global_config.soft_constraints.min_lessons_per_day_penalty*(index)
                 
-            vars.append(self.model.variables.add( obj=[penalty],
-                                                    lb=[0], 
-                                                    ub=[1],
-                                                    types=[self.model.variables.type.binary],
-                                                    names=['MinLessons'+str(teacher_or_group)])[0])
+            vars += add_variables(self.model, obj=[penalty],names=['MinLessons'+str(teacher_or_group)])
             indicies.append(index)
             penalties.append(penalty)
 
@@ -713,10 +727,7 @@ class Solver:
             if active_weeks[div] <= 1:
                 continue
             
-            dummy_var = self.model.variables.add(obj=[0],
-                                                lb=[0],
-                                                ub=[1],
-                                                types=[self.model.variables.type.binary])[0]
+            dummy_var = add_variables(self.model)[0]
 
             temp_weeks = up_down_weeks[div] + [ dummy_var]
 
@@ -736,11 +747,7 @@ class Solver:
         if similar_type_only:
             return
 
-        dummy_vars = list(self.model.variables.add(obj=[0.01, 0],
-                                            lb=[0]*2,
-                                            ub=[1]*2,
-                                            types=[self.model.variables.type.binary]*2,
-                                            names=["dummy " + name + " day " + str(day)]*2))
+        dummy_vars = add_variables(self.model, obj=[0.01, 0],names=["dummy " + name + " day " + str(day)]*2)
 
         temp_weeks = up_down_weeks[0]+up_down_weeks[1] + dummy_vars
         weeks = active_weeks[0]+active_weeks[1]
@@ -773,11 +780,7 @@ class Solver:
                         
             if is_soft_constraint:
                 penalty = base_penalty*(1+multiple_for_similar_type*similar_type_of_week)
-                temp_variables = list(self.model.variables.add( obj=[penalty]*2,
-                                                                lb=[0]*2, 
-                                                                ub=[1]*2,
-                                                                types=[self.model.variables.type.binary]*2,
-                                                                names=['Balance + ' + name]*2))
+                temp_variables = list(add_variables(self.model, obj=[penalty]*2,names='Balance + ' + name))
 
                 indexes += temp_variables
                 values += [1,-1]
