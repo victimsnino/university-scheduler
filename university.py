@@ -38,7 +38,7 @@ class Lesson:
 
         return size
 
-    def should_be_after_lessons(self, another_lesson):
+    def should_be_after_lesson(self, another_lesson):
         '''
         another_lesson is lesson, that should be before current:\n
         At any moment of time count of another_lessons >= count of self lessons
