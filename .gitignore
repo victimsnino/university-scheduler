@@ -6,3 +6,7 @@ small_example.py
 generating/__pycache__/
 output.html
 scheduling.code-workspace
+temp.txt
+temp.log
+prof/*
+Tests/__pycache__/*

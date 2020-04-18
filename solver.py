@@ -848,7 +848,7 @@ class Solver:
                 elif not day is None and day == day_i:
                     return
 
-        count_of_lessons = lesson.get_count() #self.university.get_count_of_lessons_with_friends(lesson.self_index, ith, column == 'teacher_id')
+        count_of_lessons = self.university.get_count_of_lessons_with_friends(lesson.self_index, ith, column == 'teacher_id')
         lessons_per_day = global_config.soft_constraints.min_count_of_specific_lessons_during_day
         self.__balance_timeslots_in_current_day_every_week( source, 
                                                             int(count_of_lessons/(self.university.get_weeks_count_for_day(day_i)/2)) <= lessons_per_day,

@@ -89,8 +89,8 @@ def main():
     university.add_room(1, 301, RoomType.PRACTICE, 100)
     university.add_room(1, 306, RoomType.PRACTICE, 100)
 
-    university.add_room(2, 216, RoomType.PRACTICE, 100)
-    university.add_room(2, 402, RoomType.LECTURE | RoomType.PRACTICE, 100)
+    #university.add_room(2, 216, RoomType.PRACTICE, 100)
+   # university.add_room(2, 402, RoomType.LECTURE | RoomType.PRACTICE, 100)
     
 
     university.add_group('17bi-1', 15, GroupType.BACHELOR)
@@ -106,43 +106,43 @@ def main():
     university.add_teacher('Асеева')
 
     lect = university.add_lesson('Алгоритмы и структуры данных', ['17bi-1', '17bi-2'], weeks, RoomType.LECTURE, ['Демкин'])
-    practice1 = university.add_lesson('Алгоритмы и структуры данных', ['17bi-1'], weeks, RoomType.PRACTICE, ['Демкин']).should_be_after_lessons(lect)
-    practice2 = university.add_lesson('Алгоритмы и структуры данных', ['17bi-2'], weeks, RoomType.PRACTICE, ['Демкин']).should_be_after_lessons(lect)
+    practice1 = university.add_lesson('Алгоритмы и структуры данных', ['17bi-1'], weeks, RoomType.PRACTICE, ['Демкин']).should_be_after_lesson(lect)
+    practice2 = university.add_lesson('Алгоритмы и структуры данных', ['17bi-2'], weeks, RoomType.PRACTICE, ['Демкин']).should_be_after_lesson(lect)
 
     university.add_friends_lessons([lect, practice1])
     university.add_friends_lessons([lect, practice2])
 
     lect = university.add_lesson('Объектно -ориентированное программирование', ['17bi-1', '17bi-2'], weeks/2, RoomType.LECTURE, ['Демкин'])
-    practice1 = university.add_lesson('Объектно -ориентированное программирование', ['17bi-1'], weeks/2, RoomType.PRACTICE, ['Демкин']).should_be_after_lessons(lect)
-    practice2 = university.add_lesson('Объектно -ориентированное программирование', ['17bi-2'], weeks/2, RoomType.PRACTICE, ['Демкин']).should_be_after_lessons(lect)
+    practice1 = university.add_lesson('Объектно -ориентированное программирование', ['17bi-1'], weeks/2, RoomType.PRACTICE, ['Демкин']).should_be_after_lesson(lect)
+    practice2 = university.add_lesson('Объектно -ориентированное программирование', ['17bi-2'], weeks/2, RoomType.PRACTICE, ['Демкин']).should_be_after_lesson(lect)
 
     university.add_friends_lessons([lect, practice1])
     university.add_friends_lessons([lect, practice2])
 
-    lect = university.add_lesson('Теория вероятностей', ['17bi-1', '17bi-2'], weeks, RoomType.LECTURE, ['Колданов']).should_be_after_lessons(lect)
-    practice1 = university.add_lesson('Теория вероятностей', ['17bi-1'], weeks, RoomType.PRACTICE, ['Семенов']).should_be_after_lessons(lect)
-    practice2 = university.add_lesson('Теория вероятностей', ['17bi-2'], weeks, RoomType.PRACTICE, ['Семенов']).should_be_after_lessons(lect)
+    lect = university.add_lesson('Теория вероятностей', ['17bi-1', '17bi-2'], weeks, RoomType.LECTURE, ['Колданов']).should_be_after_lesson(lect)
+    practice1 = university.add_lesson('Теория вероятностей', ['17bi-1'], weeks, RoomType.PRACTICE, ['Семенов']).should_be_after_lesson(lect)
+    practice2 = university.add_lesson('Теория вероятностей', ['17bi-2'], weeks, RoomType.PRACTICE, ['Семенов']).should_be_after_lesson(lect)
 
     university.add_friends_lessons([lect, practice1])
     university.add_friends_lessons([lect, practice2])
 
     lect = university.add_lesson('Моделирование процессов и систем', ['17bi-1', '17bi-2'], weeks, RoomType.LECTURE, ['Асеева'])
-    practice1 = university.add_lesson('Моделирование процессов и систем', ['17bi-1'], weeks, RoomType.PRACTICE, ['Куранова']).should_be_after_lessons(lect)
-    practice2 = university.add_lesson('Моделирование процессов и систем', ['17bi-2'], weeks, RoomType.PRACTICE, ['Куранова']).should_be_after_lessons(lect)
+    practice1 = university.add_lesson('Моделирование процессов и систем', ['17bi-1'], weeks, RoomType.PRACTICE, ['Куранова']).should_be_after_lesson(lect)
+    practice2 = university.add_lesson('Моделирование процессов и систем', ['17bi-2'], weeks, RoomType.PRACTICE, ['Куранова']).should_be_after_lesson(lect)
 
     university.add_friends_lessons([lect, practice1])
     university.add_friends_lessons([lect, practice2])
 
     lect = university.add_lesson('Анализ данных', ['17bi-1', '17bi-2'], weeks, RoomType.LECTURE, ['Калягин'])
-    practice1 = university.add_lesson('Анализ данных', ['17bi-1'], weeks, RoomType.PRACTICE, ['Казаков']).should_be_after_lessons(lect)
+    practice1 = university.add_lesson('Анализ данных', ['17bi-1'], weeks, RoomType.PRACTICE, ['Казаков']).should_be_after_lesson(lect)
     university.add_friends_lessons([lect, practice1])
 
     university.add_lesson('Английский язык', ['17bi-1', '17bi-2'],  2*weeks, RoomType.PRACTICE, ['Фролова'])
     university.add_lesson('Английский язык1', ['17bi-1', '17bi-2'], 2*weeks, RoomType.PRACTICE, ['Фролова'])
 
     solver = Solver(university)
-    res, output = solver.solve()
-
+    solver.solve()
+    return
     # open_as_html(output, university)
 
 

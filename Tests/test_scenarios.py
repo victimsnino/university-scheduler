@@ -10,7 +10,20 @@ def setup_function():
     global_config.reset()
     print()
 
-def test_full_module_for_two_groups():
+def fill_16pmi(university):
+    lect = university.add_lesson("Случайные процессы", ['16-pmi'], 11, RoomType.LECTURE,  ['Колданов'])
+    practice = university.add_lesson("Случайные процессы", ['16-pmi'], 11, RoomType.PRACTICE,  ['Колданов'])
+    practice.should_be_after_lesson(lect)
+    university.add_friends_lessons([lect, practice])
+
+    university.add_lesson("Научный семинар", ['16-pmi'], 10, RoomType.LECTURE,  ['Бабкина'])
+    university.add_lesson("Академическое письмо", ['16-pmi'], 12, RoomType.PRACTICE,  ['Фролова'])
+    university.add_lesson("Компьютерная лингвистика", ['16-pmi'], 22, RoomType.LECTURE,  ['Слащинин'])
+    lect = university.add_lesson("Интернет вещей", ['16-pmi'], 11, RoomType.LECTURE,  ['Зеленов'])
+    practice = university.add_lesson("Интернет вещей", ['16-pmi'], 11, RoomType.COMPUTER,  ['Зеленов']).should_be_after_lesson(lect)
+    university.add_friends_lessons([lect, practice])
+
+def test_full_module_for_our_group():
     global_config.soft_constraints.max_lessons_per_day = 3
     weeks = 12
     university = University(start_from_day_of_week = 3, end_by_day_of_week=1,weeks=weeks)
@@ -32,17 +45,8 @@ def test_full_module_for_two_groups():
     university.add_teacher('Слащинин')
     university.add_teacher('Зеленов')
 
-    lect = university.add_lesson("Случайные процессы", ['16-pmi'], 11, RoomType.LECTURE,  ['Колданов'])
-    practice = university.add_lesson("Случайные процессы", ['16-pmi'], 11, RoomType.PRACTICE,  ['Колданов'])
-    practice.should_be_after_lesson(lect)
+    fill_16pmi(university)
 
-    university.add_lesson("Научный семинар", ['16-pmi'], 10, RoomType.COMPUTER,  ['Бабкина'])
-    university.add_lesson("Академическое письмо", ['16-pmi'], 12, RoomType.PRACTICE,  ['Фролова'])
-    university.add_lesson("Компьютерная лингвистика", ['16-pmi'], 22, RoomType.LECTURE,  ['Слащинин'])
-    university.add_lesson("Интернет вещей", ['16-pmi'], 22, RoomType.COMPUTER,  ['Зеленов'])
-  #  university.add_lesson('Temp', ['16-pmi'], 6, RoomType.COMPUTER, ['Зеленов'])
-    
-    university.add_friends_lessons([lect, practice])
     solver = Solver(university)
     res, output , by_teachers = solver.solve()
     assert res
@@ -53,6 +57,41 @@ def test_full_module_for_two_groups():
         for _, days in sorted(weeks.items()):
             for _, tss in sorted(days.items()):
                 assert len(tss) <= global_config.soft_constraints.max_lessons_per_day
+
+def test_full_module_for_fourth_course():
+    weeks = 12
+    university = University(start_from_day_of_week = 3, end_by_day_of_week=1,weeks=weeks)
+    
+    LVOV = 1
+    RADIK = 2
+
+    university.add_room(RADIK, 207, RoomType.LECTURE | RoomType.PRACTICE, 40) 
+    university.add_room(RADIK, 301, RoomType.LECTURE | RoomType.PRACTICE | RoomType.COMPUTER, 40) 
+    university.add_room(RADIK, 302, RoomType.LECTURE | RoomType.PRACTICE | RoomType.COMPUTER, 40) 
+
+    university.add_room(LVOV,  308, RoomType.PRACTICE,  25) 
+
+    university.add_group("16-pmi", 22, GroupType.BACHELOR)
+
+    university.add_teacher('Колданов')
+    university.add_teacher('Бабкина')
+    university.add_teacher('Фролова')
+    university.add_teacher('Слащинин')
+    university.add_teacher('Зеленов')
+
+    fill_16pmi(university)
+    
+    solver = Solver(university)
+    res, output , by_teachers = solver.solve()
+    assert res
+
+    open_as_html(output, university, by_teachers)
+
+    for group, weeks in sorted(output.items()):
+        for _, days in sorted(weeks.items()):
+            for _, tss in sorted(days.items()):
+                assert len(tss) <= global_config.soft_constraints.max_lessons_per_day
+
 
 def test_full_module_for_second_course():
     #global_config.soft_constraints.minimize_count_of_rooms_per_day_penalty = 0
@@ -129,3 +168,5 @@ def test_full_module_for_second_course():
         for week, days in sorted(weeks.items()):
             for day, tss in sorted(days.items()):
                 assert len(tss) == 0 or len(tss) >= 2
+
+
