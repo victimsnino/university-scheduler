@@ -27,7 +27,8 @@ def add_constraint(my_model, indexes_or_variables, sense, value, val = None):
     if val is None:
         val = [1.0]*len(indexes_or_variables)
 
-    debug(str(indexes_or_variables) + sense + str(value) + str(val))
+    if DEBUG_PRINT:
+        debug(str(indexes_or_variables) + sense + str(value) + str(val))
     my_model.linear_constraints.add(lin_expr = [cplex.SparsePair(ind = indexes_or_variables, 
                                                                 val = val)], 
                                     senses = senses[valid_operations.index(sense)],
@@ -68,15 +69,17 @@ def calculate_valid(data_regex, source):
             output += res.result()
     return output
 
-def _get_indexes_by_name(variables, search, is_just_regex = False, source = None):
+def _get_indexes_by_name(variables, search, is_just_regex = False, temp_source = None):
     if is_just_regex == False:
         search = r'^' + search.replace('[', r'\[').replace(']', r'\]') + r'$'
-
-    if source is None:
+    
+    if temp_source is None:
         source = variables.get_names()
+    else:
+        source = variables.get_names(temp_source)
 
     global timeslots_filter_cache
-    cache = timeslots_filter_cache.setdefault(search, {}).setdefault(str(source), {})
+    cache = timeslots_filter_cache.setdefault(search, {}).setdefault(str(temp_source), {})
     value = cache.get('cached_var', None)
     if not value is None:
         return copy.deepcopy(value)
@@ -84,9 +87,12 @@ def _get_indexes_by_name(variables, search, is_just_regex = False, source = None
     debug(search)
     data_regex = re.compile(search)
 
-    indexes = calculate_valid(data_regex, source)
+    indexes = []
+    for name in source:
+        if not data_regex.match(name) is None:
+            indexes.append(variables.get_indices(name))
 
-    #indexes = [source[i] for i, is_valid in enumerate(valid) if is_valid]
+    #indexes = calculate_valid(data_regex, source)
     cache['cached_var'] = indexes
 
     return copy.deepcopy(indexes)
@@ -99,12 +105,18 @@ def _get_indexes_of_timeslots_by_filter(timeslots, week = -1, day = -1, corpus =
     if source is None:
         source = list(timeslots.keys())
 
+    cache = timeslots_filter_cache.setdefault(str(target), {}).setdefault(str(source), {})
+    value = cache.get('cached_var', None)
+    if not value is None:
+        return copy.deepcopy(value)
+
     out = []
     for index in source:
         if index in timeslots and timeslots[index] == target:
             out.append(index)
             pass
-    
+
+    cache['cached_var'] = out[:len(out)]
     return out[:len(out)]
                         
 def _get_corpus__or_room_tracker_by_filter(variables, room = None, corpus = r'.*', week = r'.*', day = r'.*', group_id = None, teacher_id = None, source = None):
@@ -390,7 +402,7 @@ class Solver:
                                                     ub=[1],
                                                     types=[self.model.variables.type.binary],
                                                     names=[name])[0])
-                                self.timeslots[name] = TimeSlotWrapper(week_i, day_i, corpus_i, room.room_number, time_slot, lesson.self_index, 
+                                self.timeslots[indexes[-1]] = TimeSlotWrapper(week_i, day_i, corpus_i, room.room_number, time_slot, lesson.self_index, 
                                                                                 lesson.group_indexes, lesson.lesson_type, teacher_i)
                             
                         # each time-slot can have only 1 lesson
@@ -510,8 +522,8 @@ class Solver:
 
         def get_sorted_indexes_and_costs(self, lesson_i):
             original_indexes = _get_indexes_of_timeslots_by_filter(self.timeslots, lesson=str(lesson_i))
-            original_indexes = sorted(original_indexes, key=lambda index: _calculate_cost_of_lesson_by_position(index))
-            original_costs   = [_calculate_cost_of_lesson_by_position(i) for i in original_indexes]
+            original_indexes = sorted(original_indexes, key=lambda index: _calculate_cost_of_lesson_by_position(self.model.variables.get_names(index)))
+            original_costs   = [_calculate_cost_of_lesson_by_position(self.model.variables.get_names(i)) for i in original_indexes]
             return original_indexes, original_costs
 
         def fill_at_any_moment_lections_ge_practices(self, original_costs, after_costs, original_indexes, should_be_after_indexes):

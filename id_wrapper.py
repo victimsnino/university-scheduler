@@ -1,3 +1,4 @@
+from general_utils import time_slot_format
 
 def is_equal(left, right):
     return left == right or left == -1 or right == -1
@@ -14,6 +15,10 @@ class TimeSlotWrapper:
         self.group_id   = group_id if isinstance(group_id, list) else [int(group_id)]
         self.type       = type
         self.teacher_id = int(teacher_id)
+
+    def __str__(self):
+        return time_slot_format % (self.week, self.day, self.corpus, self.room, self.timeslot, self.lesson,
+                                  str(self.group_id), self.type, self.teacher_id)
 
     def __eq__(self, other):
         equal = True

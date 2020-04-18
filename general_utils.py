@@ -40,6 +40,8 @@ class SoftConstraints:
         
          # value < 0  is Hard constraint
         self.grouping_subjects_during_day_penalty           = 1
+
+        self.lesson_after_lesson_penalty                    = 1
         
         
 class Config:
@@ -47,7 +49,7 @@ class Config:
         self.reset()
         
     def reset(self):
-        self.timelimit_for_solve            = 0
+        self.timelimit_for_solve            = 180
         self.bachelor_time_slots_per_day    = 6
         self.magistracy_time_slots_per_day  = 2
         # Expected, that lessons for magistracy AFTER bachelors
@@ -56,7 +58,7 @@ class Config:
         self.max_lessons_per_day            = 5
         self.max_lessons_per_week           = 16 # 25 hours / 6 = 16.666666
         # -1 -> hard constraint, 0 - without constraint, >= 1  - penalty for soft costraint
-        self.windows_penalty                = 10
+        self.windows_penalty                = 20
         # windows for groups is more critical thing then for teachers.
         self.windows_groups_multiplier      = 2
         self.soft_constraints               = SoftConstraints()
