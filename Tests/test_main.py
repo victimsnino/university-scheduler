@@ -604,8 +604,8 @@ def test_friend_lessons_diff_groups_common_lecture():
     university.add_room(1, 2, RoomType.LECTURE | RoomType.PRACTICE, 10)
     university.add_room(1, 3, RoomType.LECTURE | RoomType.PRACTICE, 10)
     university.add_room(1, 4, RoomType.LECTURE | RoomType.PRACTICE, 10)
-    university.add_group('Group1', 1, GroupType.BACHELOR)
-    university.add_group('Group2', 1, GroupType.BACHELOR)
+    university.add_group('Group1', 1, GroupType.BACHELOR).ban_time_slots(day=3)
+    university.add_group('Group2', 1, GroupType.BACHELOR).ban_time_slots(day=2).ban_time_slots(day=1).ban_time_slots(day=3)
     university.add_teacher('Teacher')
     university.add_teacher('Teacher1')
 
@@ -626,7 +626,7 @@ def test_friend_lessons_diff_groups_common_lecture():
 
     solver = Solver(university)
     res, out , by_teacher = solver.solve()
-    #open_as_html(out, university, by_teacher)
+    open_as_html(out, university, by_teacher)
 
     for group, weeks in sorted(out.items()):
         for week, days in sorted(weeks.items()):
@@ -635,5 +635,6 @@ def test_friend_lessons_diff_groups_common_lecture():
                 for ts, data in sorted(tss.items()):
                     corpus, room, lesson, _type, teacher, other_groups = data
                     uniq_lessons.add(lesson.self_index)
+                print(uniq_lessons)
                 assert len(uniq_lessons) == 0 or len(uniq_lessons) == 3
 
