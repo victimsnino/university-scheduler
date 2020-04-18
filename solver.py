@@ -356,7 +356,6 @@ class Solver:
         self.model = cplex.Cplex()
         self.university = university
         self.model.objective.set_sense(self.model.objective.sense.minimize)
-        #self.model.parameters.mip.strategy.search.set(1)
         self.model.parameters.simplex.limits.lowerobj.set(0)
         if global_config.timelimit_for_solve > 0:
             self.model.parameters.timelimit.set(global_config.timelimit_for_solve)
@@ -506,6 +505,9 @@ class Solver:
         Some lessons should be after some another. \n
         For example, practice should be after lection. Therefore we should track it.
         '''
+        if global_config.soft_constraints.lesson_after_lesson_penalty <= 0:
+            return
+
         def get_sorted_indexes_and_costs(self, lesson_i):
             original_indexes = _get_indexes_of_timeslots_by_filter(self.timeslots, lesson=str(lesson_i))
             original_indexes = sorted(original_indexes, key=lambda index: _calculate_cost_of_lesson_by_position(index))
@@ -528,8 +530,8 @@ class Solver:
                 
                 indexes = should_be_after_indexes[:after_till_index]+original_indexes[:original_till_index]
                 vals = [float(lesson.get_count()/should_be_after_this.get_count())]*after_till_index+[-1]*original_till_index
-                add_soft_constraint(self.model, indexes, '>=', 0, vals, 1, 1, 'Less after less min')
-                add_soft_constraint(self.model, indexes, '<=', 2, vals, 1, -1, 'Less after less max')
+                add_soft_constraint(self.model, indexes, '>=', 0, vals, global_config.soft_constraints.lesson_after_lesson_penalty, 1, 'Less after less min')
+                add_soft_constraint(self.model, indexes, '<=', 2, vals, global_config.soft_constraints.lesson_after_lesson_penalty, -1, 'Less after less max')
 
         # practice
         for lesson_i, lesson in enumerate(self.university.lessons):
@@ -846,7 +848,7 @@ class Solver:
                 elif not day is None and day == day_i:
                     return
 
-        count_of_lessons = self.university.get_count_of_lessons_with_friends(lesson.self_index, ith, column == 'teacher_id')
+        count_of_lessons = lesson.get_count() #self.university.get_count_of_lessons_with_friends(lesson.self_index, ith, column == 'teacher_id')
         lessons_per_day = global_config.soft_constraints.min_count_of_specific_lessons_during_day
         self.__balance_timeslots_in_current_day_every_week( source, 
                                                             int(count_of_lessons/(self.university.get_weeks_count_for_day(day_i)/2)) <= lessons_per_day,
@@ -1122,15 +1124,15 @@ class Solver:
        # print(self.temp)
 
         debug(self.model.variables.get_names())
-        output = self.__parse_output_and_create_schedule()
-        return not output is None, output
+        by_groups, by_teachers = self.__parse_output_and_create_schedule()
+        return not by_groups is None, by_groups, by_teachers
 
     def __parse_output_and_create_schedule(self):
         print("Solution status = ",     self.model.solution.get_status(), ":", self.model.solution.status[self.model.solution.get_status()])
         if self.model.solution.get_status() in [1, 101, 102, 107, 113]:
             print("Value: ", self.model.solution.get_objective_value())
         else:
-            return None
+            return None, None
 
         debug("Array of X = %s" %           self.model.solution.get_values())
         debug("Solution value  = %s" %      self.model.solution.get_objective_value())
@@ -1140,6 +1142,7 @@ class Solver:
         objectives = self.model.objective.get_linear()
 
         by_group = {}
+        by_teacher = {}
         for i, val in enumerate(values):
             if round(val,3) <= 0:
                 continue
@@ -1153,24 +1156,14 @@ class Solver:
             debug(names[i] + str(val))
             week, day, corpus, room, ts, lesson,  group_ids,  _type, teacher = variables
             for group_id in group_ids:
-                temp = by_group
-                if not group_id in temp:
-                    temp[group_id] = {}
-
-                temp = temp[group_id]
-                if not week in temp:
-                    temp[week] = {}
-
-                temp = temp[week]
-                if not day in temp:
-                    temp[day] = {}
-
-                temp = temp[day]
-                if not ts in temp:
-                    temp[ts] = {}
                 temp_list = copy.deepcopy(group_ids)
                 temp_list.remove(group_id)
-                temp[ts] = [int(corpus), int(room), self.university.lessons[lesson], _type, int(teacher), temp_list]
+
+                day_dict_by_group = by_group.setdefault(group_id, {}).setdefault(week, {}).setdefault(day, {})
+                day_dict_by_group[ts] = [int(corpus), int(room), self.university.lessons[lesson], _type, int(teacher), temp_list]
+
+                day_dict_by_teacher = by_teacher.setdefault(int(teacher), {}).setdefault(week, {}).setdefault(day, {})
+                day_dict_by_teacher[ts] = [int(corpus), int(room), self.university.lessons[lesson], _type, group_ids]
 
         # for group, weeks in sorted(by_group.items()):
         #     for week, days in sorted(weeks.items()):
@@ -1180,7 +1173,7 @@ class Solver:
         #                 print("Groups %s \t Week %d\tDay %d Corpus %d  TS %d  room %d\tlesson %s\ttype %s\t\t With %s  \tteacher %s" % 
         #                       (group, week, day, corpus, ts, room, lesson, str(_type).split('.')[1], ",".join(str(i) for i in other_groups), self.university.teachers[teacher] ))
 
-        return by_group
+        return by_group, by_teacher
     
     def _get_groups_teachers_list(self):
         ''' Returns tuple of (container, format for corpus tracking, column for filter) '''

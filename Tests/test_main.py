@@ -13,7 +13,7 @@ def setup_function():
 def test_empty():
     university = University()
     solver = Solver(university)
-    res, _ = solver.solve()
+    res, _ , _ = solver.solve()
     assert res
 
 def test_add_group_twice():
@@ -45,7 +45,7 @@ def test_1_room():
     university.add_lesson("прога", ['16-pmi'], 5, RoomType.LECTURE,  ['Бычков И С'])
 
     solver = Solver(university)
-    res, _ = solver.solve()
+    res, _ , _ = solver.solve()
     assert res
 
 def test_ban_changing_corpus():
@@ -62,14 +62,14 @@ def test_ban_changing_corpus():
     fill(university)
 
     solver = Solver(university)
-    res, output = solver.solve()
+    res, output , _ = solver.solve()
     assert not res
     
     university = University(0,1,1)
     fill(university)
 
     solver = Solver(university)
-    res, _ = solver.solve()
+    res, _ , _ = solver.solve()
     assert res
     
 def test_multiple_teachers():
@@ -85,14 +85,14 @@ def test_multiple_teachers():
     university.add_lesson("прога", ['17-pmi'], 1, RoomType.PRACTICE,  ['Бычков И С'])
 
     solver = Solver(university)
-    res, _ = solver.solve()
+    res, _ , _ = solver.solve()
     assert not res
     temp_university.add_teacher('Фейк')
     temp_university.add_lesson("прога", ['16-pmi'], 1, RoomType.LECTURE,  ['Бычков И С', 'Фейк'])
     temp_university.add_lesson("прога", ['17-pmi'], 1, RoomType.PRACTICE,  ['Бычков И С', 'Фейк'])
 
     solver = Solver(temp_university)
-    res, _ = solver.solve()
+    res, _ , _ = solver.solve()
     assert res
 
 def test_count_of_lessons():
@@ -105,7 +105,7 @@ def test_count_of_lessons():
     practice = university.add_lesson("прога", ['16-pmi'], lecture_count, RoomType.PRACTICE,  ['Бычков И С'])
 
     solver = Solver(university)
-    res, output = solver.solve()
+    res, output , _ = solver.solve()
     assert res
 
     index = 0
@@ -128,10 +128,10 @@ def test_order_lessons():
     practice = university.add_lesson("прога", ['16-pmi'], practice_count, RoomType.PRACTICE,  ['Бычков И С'])
     lection = university.add_lesson("прога", ['16-pmi'], lecture_count, RoomType.LECTURE,  ['Бычков И С'])
 
-    practice.should_be_after_lessons(lection)
+    practice.should_be_after_lesson(lection)
 
     solver = Solver(university)
-    res, output = solver.solve()
+    res, output , _ = solver.solve()
     assert res
 
     index = 0
@@ -156,12 +156,12 @@ def test_max_lessons_per_day():
     university.add_lesson("прога", ['16-pmi'], 5, RoomType.LECTURE,  ['Бычков И С'])
 
     solver = Solver(university)
-    res, _ = solver.solve()
+    res, _ , _ = solver.solve()
     assert not res
 
     global_config.max_lessons_per_day = 6
     solver = Solver(university)
-    res, _ = solver.solve()
+    res, _ , _ = solver.solve()
     assert res
 
 def test_max_lessons_per_week():
@@ -174,12 +174,12 @@ def test_max_lessons_per_week():
     university.add_lesson("прога", ['16-pmi'], 5, RoomType.LECTURE,  ['Бычков И С'])
 
     solver = Solver(university)
-    res, _ = solver.solve()
+    res, _ , _ = solver.solve()
     assert not res
 
     global_config.max_lessons_per_week = 6
     solver = Solver(university)
-    res, _ = solver.solve()
+    res, _ , _ = solver.solve()
     assert res
 
 def test_teacher_ban_some_tss():
@@ -194,13 +194,13 @@ def test_teacher_ban_some_tss():
     university.add_lesson("прога", ['16-pmi'], 3, RoomType.LECTURE,  ['Бычков И С'])
 
     solver = Solver(university)
-    res, _ = solver.solve()
+    res, _ , _ = solver.solve()
     assert not res
 
     global_config.time_slots_per_day_available = 4
     global_config.soft_constraints.timeslots_penalty = [0,0,0,0]
     solver = Solver(university)
-    res, _ = solver.solve()
+    res, _ , _ = solver.solve()
     assert res
 
 def test_magistracy_and_bachelor():
@@ -220,7 +220,7 @@ def test_magistracy_and_bachelor():
     university.add_lesson("прога", ['17-iad'], 2, RoomType.LECTURE,  ['Бычков И С', 'Прогер'])
 
     solver = Solver(university)
-    res, output = solver.solve()
+    res, output , _ = solver.solve()
     assert res
     for group, weeks in sorted(output.items()):
         for _, days in sorted(weeks.items()):
@@ -250,7 +250,7 @@ def test_ban_windows_1():
     university.add_lesson("прога", ['17-iad'], 2, RoomType.LECTURE,  ['Бычков И С', 'Прогер'])
 
     solver = Solver(university)
-    res, output = solver.solve()
+    res, output , _ = solver.solve()
     assert res
     for group, weeks in sorted(output.items()):
         for _, days in sorted(weeks.items()):
@@ -281,7 +281,7 @@ def test_ban_windows_2():
 
 
     solver = Solver(university)
-    res, output = solver.solve()
+    res, output , _ = solver.solve()
     assert res
     for group, weeks in sorted(output.items()):
         for _, days in sorted(weeks.items()):
@@ -313,7 +313,7 @@ def test_ban_windows_soft():
 
     # in this case it is expected, that solution doesn't exists
     global_config.windows_penalty = -1
-    res, output = solver.solve()
+    res, output , _ = solver.solve()
     assert not res
 
     global_config.windows_penalty = 1
@@ -336,7 +336,7 @@ def test_one_teacher_per_lesson():
 
 
     solver = Solver(university)
-    res, output = solver.solve()
+    res, output , _ = solver.solve()
     assert res
     for group, weeks in sorted(output.items()):
         teachers = set()
@@ -360,7 +360,7 @@ def test_lessons_in_similar_day_and_ts_during_module():
     university.add_lesson("матан", ['16-pmi'], 8, RoomType.LECTURE,  ['Чистяков В В'])
 
     solver = Solver(university)
-    res, output = solver.solve()
+    res, output , _ = solver.solve()
     assert res
     
     #open_as_html(output, university)
@@ -394,7 +394,7 @@ def test_similar_room_every_week():
     university.add_lesson("прога", ['16-pmi'], 36, RoomType.LECTURE,  ['Бычков И С'])
 
     solver = Solver(university)
-    res, output = solver.solve()
+    res, output , _ = solver.solve()
     assert res
     
     #open_as_html(output, university)
@@ -420,7 +420,7 @@ def test_no_lessons_in_saturday():
     university.add_lesson('Lesson3', ['Group'], 12, RoomType.LECTURE, ['Teacher'])
 
     solver = Solver(university)
-    res, out = solver.solve()
+    res, out , _ = solver.solve()
     assert res
 
     for group, weeks in sorted(out.items()):
@@ -448,10 +448,10 @@ def test_no_lessons_first_timeslot():
     university.add_lesson('Lesson3', ['Group'], 8, RoomType.LECTURE, ['Teacher'])
 
     solver = Solver(university)
-    res, out = solver.solve()
+    res, out , _ = solver.solve()
     assert res
     
-    open_as_html(out, university)
+    #open_as_html(out, university)
 
     for group, weeks in sorted(out.items()):
         for week, days in sorted(weeks.items()):
@@ -469,7 +469,7 @@ def test_lessons_grouped_by_lesson_id_during_week():
     university.add_lesson('Lesson3', ['Group'], 12, RoomType.PRACTICE, ['Teacher'])
 
     solver = Solver(university)
-    res, out = solver.solve()
+    res, out , _ = solver.solve()
     #open_as_html(out, university)
 
     for group, weeks in sorted(out.items()):
@@ -491,7 +491,7 @@ def test_lessons_grouped_by_lesson_id_during_day():
     university.add_lesson('Lesson3', ['Group'], 16, RoomType.PRACTICE, ['Teacher'])
 
     solver = Solver(university)
-    res, out = solver.solve()
+    res, out , _ = solver.solve()
    # open_as_html(out, university)
 
     for group, weeks in sorted(out.items()):
@@ -519,8 +519,8 @@ def test_lessons_balanced_every_week_every_day():
 
 
     solver = Solver(university)
-    res, out = solver.solve()
-    open_as_html(out, university)
+    res, out , _ = solver.solve()
+    #open_as_html(out, university)
 
     for group, weeks in sorted(out.items()):
         lessons_by_day = {}
@@ -546,13 +546,13 @@ def test_friend_lessons():
     lect = university.add_lesson('Lesson', ['Group'], count, RoomType.LECTURE, ['Teacher'])
     practice = university.add_lesson('Lesson', ['Group'], count, RoomType.PRACTICE, ['Teacher'])
 
-    practice.should_be_after_lessons(lect)
+    practice.should_be_after_lesson(lect)
     university.add_friends_lessons([lect, practice])
 
 
     solver = Solver(university)
-    res, out = solver.solve()
-    #open_as_html(out, university)
+    res, out , _ = solver.solve()
+    #open_as_htmlhtml(out, university)
 
     for group, weeks in sorted(out.items()):
         for week, days in sorted(weeks.items()):
@@ -576,16 +576,16 @@ def test_friend_lessons_diff_groups_diff_lections():
     practice1 = university.add_lesson('Lesson', ['Group1'], count, RoomType.PRACTICE, ['Teacher'])
     practice2 = university.add_lesson('Lesson', ['Group2'], count, RoomType.PRACTICE, ['Teacher'])
 
-    practice1.should_be_after_lessons(lect1)
-    practice2.should_be_after_lessons(lect2)
+    practice1.should_be_after_lesson(lect1)
+    practice2.should_be_after_lesson(lect2)
 
     university.add_friends_lessons([lect1, practice1])
     university.add_friends_lessons([lect2, practice2])
 
 
     solver = Solver(university)
-    res, out = solver.solve()
-    open_as_html(out, university)
+    res, out , _ = solver.solve()
+    #open_as_html(out, university)
 
     for group, weeks in sorted(out.items()):
         for week, days in sorted(weeks.items()):
@@ -617,16 +617,16 @@ def test_friend_lessons_diff_groups_common_lecture():
         university.add_lesson('DummyLesson'+str(i), ['Group1'], 1, RoomType.PRACTICE, ['Teacher1'])
         university.add_lesson('DummyLesson'+str(i), ['Group2'], 1, RoomType.PRACTICE, ['Teacher1'])    
 
-    practice1.should_be_after_lessons(lect)
-    practice2.should_be_after_lessons(lect)
+    practice1.should_be_after_lesson(lect)
+    practice2.should_be_after_lesson(lect)
 
     university.add_friends_lessons([lect, practice1])
     university.add_friends_lessons([lect, practice2])
 
 
     solver = Solver(university)
-    res, out = solver.solve()
-    open_as_html(out, university)
+    res, out , by_teacher = solver.solve()
+    open_as_html(out, university, by_teacher)
 
     for group, weeks in sorted(out.items()):
         for week, days in sorted(weeks.items()):
@@ -636,3 +636,4 @@ def test_friend_lessons_diff_groups_common_lecture():
                     corpus, room, lesson, _type, teacher, other_groups = data
                     uniq_lessons.add(lesson.self_index)
                 assert len(uniq_lessons) == 0 or len(uniq_lessons) == 3
+
