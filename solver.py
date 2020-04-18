@@ -8,6 +8,7 @@ from functools import wraps
 import warnings
 import numpy as np
 import math
+import sys
 
 from id_wrapper import TimeSlotWrapper
 from concurrent.futures import ThreadPoolExecutor 
@@ -36,11 +37,11 @@ def add_constraint(my_model, indexes_or_variables, sense, value, val = None):
 
 def add_soft_constraint(my_model, indexes_or_variables, sense, value, vals, penalty, val_for_new_variable, name=None, ub = None):
     if penalty > 0: # A.K.A soft constraint
-        indexes_or_variables.append(my_model.variables.add(   obj=[penalty],
-                                                        lb=[0],
-                                                        ub =[ub] if ub else None,
-                                                        names=[name] if name else None,
-                                                        types=[my_model.variables.type.integer])[0])
+        indexes_or_variables.append(my_model.variables.add(obj=[penalty],
+                                                           lb=[0],
+                                                           ub =[ub] if ub else None,
+                                                           names=[name] if name else None,
+                                                           types=[my_model.variables.type.integer])[0])
         vals.append(val_for_new_variable)
 
     add_constraint(my_model, indexes_or_variables, sense, value, vals)
@@ -107,15 +108,10 @@ def _get_indexes_of_timeslots_by_filter(timeslots, week = -1, day = -1, corpus =
 
     cache = timeslots_filter_cache.setdefault(str(target), {}).setdefault(str(source), {})
     value = cache.get('cached_var', None)
-    if not value is None:
+    if value:
         return copy.deepcopy(value)
 
-    out = []
-    for index in source:
-        if index in timeslots and timeslots[index] == target:
-            out.append(index)
-            pass
-
+    out = [index for index in source if timeslots.get(index, None) == target]
     cache['cached_var'] = out[:len(out)]
     return out[:len(out)]
                         
@@ -395,15 +391,15 @@ class Solver:
                                 continue
 
                             for teacher_i in lesson.teacher_indexes:
-                                name = time_slot_format % (week_i, day_i, corpus_i, room.room_number, time_slot, lesson.self_index, 
-                                                                                str(lesson.group_indexes), str(lesson.lesson_type), teacher_i)
+                                wrapper = TimeSlotWrapper(week_i, day_i, corpus_i, room.room_number, time_slot, lesson.self_index, 
+                                                                                lesson.group_indexes, lesson.lesson_type, teacher_i)
                                 indexes.append(self.model.variables.add(obj=[0],
                                                     lb=[0], 
                                                     ub=[1],
                                                     types=[self.model.variables.type.binary],
-                                                    names=[name])[0])
-                                self.timeslots[indexes[-1]] = TimeSlotWrapper(week_i, day_i, corpus_i, room.room_number, time_slot, lesson.self_index, 
-                                                                                lesson.group_indexes, lesson.lesson_type, teacher_i)
+                                                    names=[str(wrapper)])[0])
+                                self.timeslots[indexes[-1]] = wrapper
+
                             
                         # each time-slot can have only 1 lesson
                         if len(indexes) != 0:
@@ -517,7 +513,7 @@ class Solver:
         Some lessons should be after some another. \n
         For example, practice should be after lection. Therefore we should track it.
         '''
-        if global_config.soft_constraints.lesson_after_lesson_penalty <= 0:
+        if global_config.soft_constraints.lesson_after_lesson_penalty == 0:
             return
 
         def get_sorted_indexes_and_costs(self, lesson_i):
@@ -643,7 +639,7 @@ class Solver:
     @get_timeslots
     @_for_groups_or_teachers
     @get_timeslots
-    def __soft_constraint_min_lessons_per_day(self, source=None, teacher_or_group=None, **kwargs):
+    def __soft_constraint_min_lessons_per_day(self, source=None, teacher_or_group=None, column=None, **kwargs):
         if  global_config.soft_constraints.min_lessons_per_day_penalty <= 0 or \
             global_config.soft_constraints.min_lessons_per_day <= 0 or  \
             global_config.soft_constraints.min_lessons_per_day >= global_config.time_slots_per_day_available:
@@ -651,6 +647,10 @@ class Solver:
         min_lessons = global_config.soft_constraints.min_lessons_per_day
 
         if teacher_or_group.count_of_lessons/(self.university.study_weeks/2) < min_lessons:
+            return
+
+        #TODO
+        if column == 'teacher_id':
             return
 
         vars = []
@@ -740,7 +740,7 @@ class Solver:
                                             lb=[0]*2,
                                             ub=[1]*2,
                                             types=[self.model.variables.type.binary]*2,
-                                            names=["dummy " + name]*2))
+                                            names=["dummy " + name + " day " + str(day)]*2))
 
         temp_weeks = up_down_weeks[0]+up_down_weeks[1] + dummy_vars
         weeks = active_weeks[0]+active_weeks[1]
@@ -971,6 +971,10 @@ class Solver:
     def __soft_constraint_reduce_ratio_of_lessons_and_subjects(self, source =  None, lesson_tracker_source= None, lesson=None, column=None, ith = None, week_i = None, day_i=None, **kwargs):
         if len(source) == 0:
             return
+        
+        #todo
+        if column == "teacher_id":
+            return
 
         sc = global_config.soft_constraints
         min_count           = sc.min_count_of_specific_lessons_during_day
@@ -994,11 +998,7 @@ class Solver:
             vals = [1/min_count]*len(source)+[-1]*len(lesson_tracker_source)
             add_soft_constraint(self.model, indexes, '>=', 0, vals, min_count_penalty, 1, "MinRatio w {0} d {1} l {2} c {3}".format(week_i, day_i, str(lesson), column))
         
-        if max_is_able:
-            #todo
-            if column == "teacher_id":
-                return
-            
+        if max_is_able:            
             indexes =  source+lesson_tracker_source
             vals = [1/max_count]*len(source)+[-1]*len(lesson_tracker_source)
             add_soft_constraint(self.model, indexes, '<=', 0, vals, max_count_penalty, -1, "MaxRatio w {0} d {1} l {2} c {3}".format(week_i, day_i, str(lesson), column))
@@ -1097,7 +1097,12 @@ class Solver:
                                                             name="LessByRooms "+str(teacher_or_group) + " Room "+ str(room_i))
 
     def solve(self):
-        #self.model.set_results_stream(None) # ignore standart useless output
+        #cplexlog = open("cplex.log", 'w')
+        #self.model.set_results_stream(cplexlog)
+        #self.model.set_warning_stream(cplexlog)
+        #self.model.set_error_stream(cplexlog)
+        #self.model.set_log_stream(cplexlog)
+
         if len(global_config.soft_constraints.timeslots_penalty) != global_config.time_slots_per_day_available:
             msg = 'Expected equality of len of timeslots_penalty and timee_slots_per_day_available. Len %s timeslots %s' % (len(global_config.soft_constraints.timeslots_penalty), global_config.time_slots_per_day_available)
             warnings.warn(msg)
@@ -1135,6 +1140,7 @@ class Solver:
             method()
        # print(self.temp)
 
+        #cplexlog.close()
         debug(self.model.variables.get_names())
         by_groups, by_teachers = self.__parse_output_and_create_schedule()
         return not by_groups is None, by_groups, by_teachers

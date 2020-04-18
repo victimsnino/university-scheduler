@@ -41,6 +41,7 @@ class SoftConstraints:
          # value < 0  is Hard constraint
         self.grouping_subjects_during_day_penalty           = 1
 
+        # 0 - disabled, < 0 - hard, > 0 soft
         self.lesson_after_lesson_penalty                    = 1
         
         

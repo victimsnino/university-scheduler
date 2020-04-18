@@ -1,7 +1,7 @@
 from general_utils import time_slot_format
 
 def is_equal(left, right):
-    return left == right or left == -1 or right == -1
+    return left == -1 or right == -1 or left == right 
 
 class TimeSlotWrapper:
     def __init__(self, week=-1, day=-1, corpus=-1, room=-1, timeslot=-1,

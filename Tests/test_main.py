@@ -318,7 +318,7 @@ def test_ban_windows_soft():
 
     global_config.windows_penalty = 1
     solver1 = Solver(university)
-    res, _ = solver1.solve()
+    res, _, _ = solver1.solve()
     assert res
 
 def test_one_teacher_per_lesson():
@@ -430,7 +430,7 @@ def test_no_lessons_in_saturday():
     global_config.soft_constraints.last_day_in_week_penalty = 300
 
     solver1 = Solver(university)
-    res, out = solver1.solve()
+    res, out, _ = solver1.solve()
     assert res
 
     for group, weeks in sorted(out.items()):
@@ -626,7 +626,7 @@ def test_friend_lessons_diff_groups_common_lecture():
 
     solver = Solver(university)
     res, out , by_teacher = solver.solve()
-    open_as_html(out, university, by_teacher)
+    #open_as_html(out, university, by_teacher)
 
     for group, weeks in sorted(out.items()):
         for week, days in sorted(weeks.items()):
