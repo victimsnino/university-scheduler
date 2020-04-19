@@ -10,11 +10,11 @@ import numpy as np
 import math
 import sys
 
-from id_wrapper import TimeSlotWrapper
+from id_wrapper import *
 from concurrent.futures import ThreadPoolExecutor 
 import multiprocessing
 
-timeslots_filter_cache = {}
+variables_filter_cache = {}
 
 def add_constraint(my_model, indexes_or_variables, sense, value, val = None):
     valid_operations = ["<=", ">=", "=="]
@@ -71,7 +71,6 @@ def add_soft_constraint(my_model, indexes_or_variables, sense, value, vals, pena
 
     add_constraint(my_model, indexes_or_variables, sense, value, vals)
 
-
 def calculate_valid(data_regex, source):
     def process_part(data_regex, temp_data):
         return [i for i in temp_data if data_regex.match(i)]
@@ -105,8 +104,8 @@ def _get_indexes_by_name(variables, search, is_just_regex = False, temp_source =
     else:
         source = variables.get_names(temp_source)
 
-    global timeslots_filter_cache
-    cache = timeslots_filter_cache.setdefault(search, {}).setdefault(str(temp_source), {})
+    global variables_filter_cache
+    cache = variables_filter_cache.setdefault(search, {}).setdefault(str(temp_source), {})
     value = cache.get('cached_var', None)
     if not value is None:
         return copy.deepcopy(value)
@@ -124,63 +123,71 @@ def _get_indexes_by_name(variables, search, is_just_regex = False, temp_source =
 
     return copy.deepcopy(indexes)
 
-def _get_indexes_of_timeslots_by_filter(timeslots, week = -1, day = -1, corpus = -1, 
-                                        room = -1, timeslot = -1, lesson = -1, group_id = list(), 
-                                        type = -1, teacher_id = -1, source = None):
+def _get_indexes_from_container_in_parallel(target, source, container):
+    def process_part(source):
+        return [index for index in source if container.get(index, None) == target]
+    
+    if len(source) < 2000:
+        return process_part(source)
+
+    threads = 4
+    part = int(len(source)/threads)
+
+    futures = []
+    with ThreadPoolExecutor(threads) as executor:
+        for thread in range(threads):
+            min = thread*part
+            max = (thread+1)*part
+            if thread == threads-1:
+                max = len(source)
+            temp_source = source[min:max]
+            futures.append(executor.submit(process_part, temp_source))
+        output = []
+        for res in futures:
+            output += res.result()
+    return output
+
+def _get_indexes_from_container(target, source, container):
+    cache = variables_filter_cache.setdefault(str(target), {}).setdefault(str(source), {})
+    value = cache.get('cached_var', None)
+    if value:
+        return copy.copy(value)
+    
+    out = _get_indexes_from_container_in_parallel(target, source, container)
+    #out = [index for index in source if container.get(index, None) == target]
+    cache['cached_var'] = out
+    return copy.copy(out)
+
+def get_indexes_of_timeslots_by_filter(timeslots, week = -1, day = -1, corpus = -1, 
+                                       room = -1, timeslot = -1, lesson = -1, group_id = list(), 
+                                       type = -1, teacher_id = -1, source = None):
 
     target = TimeSlotWrapper(week, day, corpus, room, timeslot, lesson, group_id, type, teacher_id)
     if source is None:
         source = list(timeslots.keys())
 
-    cache = timeslots_filter_cache.setdefault(str(target), {}).setdefault(str(source), {})
-    value = cache.get('cached_var', None)
-    if value:
-        return copy.deepcopy(value)
+    return _get_indexes_from_container(target, source, timeslots)
 
-    out = [index for index in source if timeslots.get(index, None) == target]
-    cache['cached_var'] = out[:len(out)]
-    return out[:len(out)]
+def get_corpus_tracker_by_filter(corpus_tracker, corpus = -1, week = -1, day = -1, group_id = -1, teacher_id = -1, source = None):
+    target = CorpusTrackerWrapper(corpus=corpus, week=week, day=day, group_id=group_id, teacher_id=teacher_id)
+    if source is None:
+        source = list(corpus_tracker.keys())
+
+    return _get_indexes_from_container(target, source, corpus_tracker)
+
+def get_room_tracker_by_filter(room_tracker, room=-1, corpus = -1, week = -1, day = -1, group_id = -1, teacher_id = -1, source = None):
+    target = RoomTrackerWrapper(room=room, corpus=corpus, week=week, day=day, group_id=group_id, teacher_id=teacher_id)
+    if source is None:
+        source = list(room_tracker.keys())
+
+    return _get_indexes_from_container(target, source, room_tracker)
                         
-def _get_corpus__or_room_tracker_by_filter(variables, room = None, corpus = r'.*', week = r'.*', day = r'.*', group_id = None, teacher_id = None, source = None):
-    search = r'^'
-    if room:
-        search += room_prefix + str(room)
+def get_lesson_tracker_by_filter(lesson_tracker, week = -1, day = -1, lesson_id = -1, group_id = -1, teacher_id = -1, source = None):
+    target = LessonTrackerWrapper(week=week, day=day, lesson=lesson_id, group_id=group_id, teacher_id=teacher_id)
+    if source is None:
+        source = list(lesson_tracker.keys())
 
-    search += corpus_prefix   + str(corpus)
-    search += week_prefix    + str(week)
-    search += day_prefix     + str(day)
-    if not group_id is None:
-        search += group_prefix + str(group_id)
-    elif not teacher_id is None:
-        search += teacher_prefix + str(teacher_id)
-    else:
-        search += '_.*'
-   
-    search += r'$'
-
-    if 'None' in search:
-        raise Exception('None in search: '+search)
-
-    return _get_indexes_by_name(variables, search, True, source)
-
-def get_lesson_tracker_by_filter(variables, week = r'.*', day = r'.*', lesson_id = r'.*', group_id = None, teacher_id = None, source = None):
-    search = r'^'
-    search += week_prefix    + str(week)
-    search += day_prefix     + str(day)
-    search += lesson_prefix  + str(lesson_id)
-    if not group_id is None:
-        search += group_prefix + str(group_id)
-    elif not teacher_id is None:
-        search += teacher_prefix + str(teacher_id)
-    else:
-        search += '_.*'
-   
-    search += r'$'
-
-    if 'None' in search:
-        raise Exception('None in search: '+search)
-
-    return _get_indexes_by_name(variables, search, True, source)
+    return _get_indexes_from_container(target, source, lesson_tracker)
 
 def _get_variables_from_general_variable(variable):
     template = time_slot_format.replace("%d", r"(\d+)").replace("%s", "(.*)")
@@ -252,9 +259,9 @@ def _for_rooms(function):
 def _for_groups_or_teachers(function):
     @wraps(function)
     def _decorator(self, **kwargs):
-        for container, format_out, column in self._get_groups_teachers_list():
+        for container, column in self._get_groups_teachers_list():
             for ith, teacher_or_group in enumerate(container):
-                function(self, ith=ith, format_out=format_out, teacher_or_group=teacher_or_group, column=column, **kwargs)
+                function(self, ith=ith, teacher_or_group=teacher_or_group, column=column, **kwargs)
     return _decorator
 
 def _for_lessons(function):
@@ -310,9 +317,9 @@ def get_timeslots(function):
         
         @_get_indexes_with_friends(friend_indexes)
         def get_indexes(self, lesson):
-            indexes = _get_indexes_of_timeslots_by_filter(self.timeslots, source=source, week=week, day=day, corpus=corpus, room=room, timeslot=timeslot, lesson=lesson, type=type)
+            indexes = get_indexes_of_timeslots_by_filter(self.timeslots, source=source, week=week, day=day, corpus=corpus, room=room, timeslot=timeslot, lesson=lesson, type=type)
             if column:
-                indexes = eval('_get_indexes_of_timeslots_by_filter(self.timeslots, source = indexes, %s=ith)' % column)
+                indexes = eval(f'get_indexes_of_timeslots_by_filter(self.timeslots, source = indexes, {column}=ith)')
                 ith # needed for capturing it inside functon
             return indexes
 
@@ -326,15 +333,15 @@ def get_timeslots(function):
 def get_corpus_tracker(function):
     @wraps(function)
     def _decorator(self, corpus_tracker_source=None, **kwargs):
-        week        = kwargs.get('week_i', r'.*')
-        day         = kwargs.get('day_i', r'.*')
-        corpus      = kwargs.get('corpus_i', r'.*')
-        column      = kwargs.get('column', None)
-        ith         = kwargs.get('ith', None)
+        week        = kwargs.get('week_i',   -1)
+        day         = kwargs.get('day_i',    -1)
+        corpus      = kwargs.get('corpus_i', -1)
+        column      = kwargs.get('column',   None)
+        ith         = kwargs.get('ith',      None)
 
-        indexes = _get_corpus__or_room_tracker_by_filter(self.model.variables, corpus=corpus, week=week, day=day, source=corpus_tracker_source)
+        indexes = get_corpus_tracker_by_filter(self.corpus_trackers, corpus=corpus, week=week, day=day, source=corpus_tracker_source)
         if column:
-            indexes = eval('_get_corpus__or_room_tracker_by_filter(self.model.variables, source=indexes, %s=ith)' % column)
+            indexes = eval(f'get_corpus_tracker_by_filter(self.corpus_trackers, source=indexes, {column}=ith)')
 
         function(self, corpus_tracker_source=indexes, **kwargs)
     return _decorator
@@ -344,16 +351,16 @@ def get_corpus_tracker(function):
 def get_room_tracker(function):
     @wraps(function)
     def _decorator(self, room_tracker_source=None, **kwargs):
-        room        = kwargs.get('room_i', r'.*')
-        week        = kwargs.get('week_i', r'.*')
-        day         = kwargs.get('day_i', r'.*')
-        corpus      = kwargs.get('corpus_i', r'.*')
+        room        = kwargs.get('room_i', -1)
+        week        = kwargs.get('week_i', -1)
+        day         = kwargs.get('day_i',  -1)
+        corpus      = kwargs.get('corpus_i', -1)
         column      = kwargs.get('column', None)
         ith         = kwargs.get('ith', None)
 
-        indexes = _get_corpus__or_room_tracker_by_filter(self.model.variables, room=room, corpus=corpus, week=week, day=day, source=room_tracker_source)
+        indexes = get_room_tracker_by_filter(self.room_trackers, room=room, corpus=corpus, week=week, day=day, source=room_tracker_source)
         if column:
-            indexes = eval('_get_corpus__or_room_tracker_by_filter(self.model.variables, room=room, source=indexes, %s=ith)' % column)
+            indexes = eval(f'get_room_tracker_by_filter(self.room_trackers, source=indexes, {column}=ith)')
 
         function(self, room_tracker_source=indexes, **kwargs)
     return _decorator
@@ -363,17 +370,17 @@ def get_room_tracker(function):
 def get_lesson_tracker(function):
     @wraps(function)
     def _decorator(self, lesson_tracker_source=None, **kwargs):
-        week        = kwargs.get('week_i', r'.*')
-        day         = kwargs.get('day_i', r'.*')
-        lesson_id   = kwargs.get('lesson_i', r'.*')
+        week        = kwargs.get('week_i', -1)
+        day         = kwargs.get('day_i', -1)
+        lesson_id   = kwargs.get('lesson_i', -1)
         column      = kwargs.get('column', None)
         ith         = kwargs.get('ith', None)
 
-        @_get_indexes_with_friends([] )# kwargs.get('friends_indexes', []))
+        @_get_indexes_with_friends([])# kwargs.get('friends_indexes', []))
         def get_indexes(self, lesson_id):
-            indexes = get_lesson_tracker_by_filter(self.model.variables, week=week, day=day, lesson_id=lesson_id, source=lesson_tracker_source)
+            indexes = get_lesson_tracker_by_filter(self.lesson_trackers, week=week, day=day, lesson_id=lesson_id, source=lesson_tracker_source)
             if column:
-                indexes = eval('get_lesson_tracker_by_filter(self.model.variables, source=indexes, %s=ith)' % column)
+                indexes = eval(f'get_lesson_tracker_by_filter(self.lesson_trackers, source=indexes, {column}=ith)')
                 ith # needed for capturing it inside functon 
             return indexes
 
@@ -394,9 +401,12 @@ class Solver:
         if global_config.timelimit_for_solve > 0:
             self.model.parameters.timelimit.set(global_config.timelimit_for_solve)
         
-        global timeslots_filter_cache
-        timeslots_filter_cache.clear()
+        global variables_filter_cache
+        variables_filter_cache.clear()
         self.timeslots = {}
+        self.corpus_trackers={}
+        self.room_trackers={}
+        self.lesson_trackers = {}
 
     def __fill_lessons_to_time_slots(self):
         ''' 
@@ -435,6 +445,7 @@ class Solver:
 
         add_constraint(self.model, source + tracker_index, '>=', -1*(max_limit-1), 
                         [1]*len(source)+[-1*max_limit])
+        return tracker_index[0]
 
     @_for_corpuses
     @get_timeslots
@@ -442,11 +453,13 @@ class Solver:
     @get_timeslots
     @_for_groups_or_teachers
     @get_timeslots
-    def __fill_dummy_variables_for_tracking_corpuses(self, source = None, week_i = None, day_i = None, corpus_i = None, format_out = None, ith=None,  **kwargs):
+    def __fill_dummy_variables_for_tracking_corpuses(self, source = None, week_i = None, day_i = None, corpus_i = None, column = None, ith=None, **kwargs):
         ''' 
         Add dummy variables for corpus tracking (Group or teacher has lection in i-th corpus)
         '''
-        self.__fill_variables_helper(format_out % ( corpus_i, week_i, day_i, ith), source, global_config.time_slots_per_day_available)
+        tracker = eval(f'CorpusTrackerWrapper(corpus=corpus_i, week=week_i, day=day_i, {column}=ith)')
+        index = self.__fill_variables_helper(str(tracker), source, global_config.time_slots_per_day_available)
+        self.corpus_trackers[index] = tracker
 
     @_for_rooms
     @get_timeslots
@@ -454,12 +467,13 @@ class Solver:
     @get_timeslots
     @_for_groups_or_teachers
     @get_timeslots
-    def __fill_dummy_variables_for_tracking_rooms(self, source = None, week_i = None, day_i = None, corpus_i = None, room_i = None, format_out = None, ith=None,  **kwargs):
+    def __fill_dummy_variables_for_tracking_rooms(self, source = None, week_i = None, day_i = None, corpus_i = None, room_i = None, column=None, ith=None,  **kwargs):
         ''' 
         Add dummy variables for corpus tracking (Group or teacher has lection in i-th corpus)
         '''
-        new_format = room_prefix + "%d" + format_out
-        self.__fill_variables_helper(new_format % (room_i, corpus_i, week_i, day_i, ith), source, global_config.time_slots_per_day_available)
+        tracker = eval(f'RoomTrackerWrapper(room=room_i, corpus=corpus_i, week=week_i, day=day_i, {column}=ith)')
+        index = self.__fill_variables_helper(str(tracker), source, global_config.time_slots_per_day_available)
+        self.room_trackers[index] = tracker
 
     @_for_lessons
     @get_timeslots
@@ -468,8 +482,9 @@ class Solver:
     @_for_groups_or_teachers
     @get_timeslots
     def __fill_dummy_variables_for_tracking_lessons(self, source = None, week_i = None, day_i = None, lesson = None, column = None, ith=None,  **kwargs):
-        new_format = lesson_id_per_day_base_tracker_format + (group_prefix if column == 'group_id' else teacher_prefix) + '%d'
-        self.__fill_variables_helper(new_format % (week_i, day_i, lesson.self_index, ith), source, global_config.time_slots_per_day_available)
+        tracker = eval(f'LessonTrackerWrapper(week=week_i, day=day_i, lesson=lesson.self_index, {column}=ith)')
+        index = self.__fill_variables_helper(str(tracker), source, global_config.time_slots_per_day_available)
+        self.lesson_trackers[index] = tracker
 
     @_for_lessons
     @get_timeslots
@@ -478,7 +493,7 @@ class Solver:
         Add dummy variables for teachers tracking (which teachers marked for current lesson during module)
         '''
         for teacher_i in lesson.teacher_indexes:
-            lections_indexes = _get_indexes_of_timeslots_by_filter(self.timeslots, source=source, teacher_id=teacher_i)
+            lections_indexes = get_indexes_of_timeslots_by_filter(self.timeslots, source=source, teacher_id=teacher_i)
             self.__fill_variables_helper(teachers_per_lesson_format % (lesson.self_index, teacher_i), lections_indexes, lesson.get_count())
 
     @_for_lessons
@@ -535,7 +550,7 @@ class Solver:
             return
 
         def get_sorted_indexes_and_costs(self, lesson_i):
-            original_indexes = _get_indexes_of_timeslots_by_filter(self.timeslots, lesson=str(lesson_i))
+            original_indexes = get_indexes_of_timeslots_by_filter(self.timeslots, lesson=str(lesson_i))
             original_indexes = sorted(original_indexes, key=lambda index: _calculate_cost_of_lesson_by_position(self.model.variables.get_names(index)))
             original_costs   = [_calculate_cost_of_lesson_by_position(self.model.variables.get_names(i)) for i in original_indexes]
             return original_indexes, original_costs
@@ -592,13 +607,13 @@ class Solver:
             elif timeslot >= global_config.time_slots_per_day_available:
                 continue
 
-            indexes = _get_indexes_of_timeslots_by_filter(self.timeslots, week=week, day=day, timeslot=timeslot, source=source)
+            indexes = get_indexes_of_timeslots_by_filter(self.timeslots, week=week, day=day, timeslot=timeslot, source=source)
             add_constraint(self.model, indexes, '==', 0)
 
     def __ban_windows(self, source, penalty):
         indexes_by_ts = []
         for timeslot in range(global_config.time_slots_per_day_available):
-            indexes_by_ts.append(_get_indexes_of_timeslots_by_filter(self.timeslots, source=source, timeslot=timeslot))
+            indexes_by_ts.append(get_indexes_of_timeslots_by_filter(self.timeslots, source=source, timeslot=timeslot))
 
         # select size of block for checking
         for max_timeslots in range(3, global_config.time_slots_per_day_available+1):
@@ -651,7 +666,7 @@ class Solver:
             name = "MaxLessons {0} w{1} d{2} di{3}".format(str(teacher_or_group), week_i, day_i, excess_lessons_per_day)
             vals = [1]*len(source)
             penalty = excess_lessons_per_day*global_config.soft_constraints.max_lessons_per_day_penalty
-            add_soft_constraint(self.model, copy.deepcopy(source), '<=', excess_lessons_per_day, vals, penalty, -1, name, ub=global_config.time_slots_per_day_available)
+            add_soft_constraint(self.model, copy.copy(source), '<=', excess_lessons_per_day, vals, penalty, -1, name, ub=global_config.time_slots_per_day_available)
             
     @_for_week_and_day
     @get_timeslots
@@ -704,7 +719,7 @@ class Solver:
                     penalty = -1
             return penalty
 
-        get_timeslots_for_week(self, source=source)
+        get_timeslots_for_week(self, source=copy.copy(source))
 
         up_down_weeks = [[],[]]
         active_weeks = [0,0]
@@ -732,7 +747,7 @@ class Solver:
             temp_weeks = up_down_weeks[div] + [ dummy_var]
 
             penalty = base_penalty*multiple_for_similar_type
-            weeks = copy.deepcopy(active_weeks[div])
+            weeks = copy.copy(active_weeks[div])
 
             penalty = calculate_penalty(penalty, weeks)
             if penalty != -1:
@@ -817,15 +832,15 @@ class Solver:
                 values = [1]*len(wi) + [-1]*len(wj)
                 add_constraint_for_balanced(self, is_soft_constraint, similar_type_of_week, indexes, values)
 
-    @_for_groups_or_teachers
-    @get_timeslots
     @_for_timeslots
-    @get_timeslots
-    @_for_lessons
     @get_timeslots
     @_for_day_only
     @get_timeslots
+    @_for_lessons
+    @get_timeslots
     @_for_rooms
+    @get_timeslots
+    @_for_groups_or_teachers
     @get_timeslots
     def __soft_constraint_lessons_balanced_during_module(self, source = None, lesson=None, day_i = None, ith=None, column=None, **kwargs):
         '''
@@ -898,7 +913,7 @@ class Solver:
         if global_config.soft_constraints.last_day_in_week_penalty <= 0 or global_config.study_days <= 1:
             return
 
-        indexes = _get_indexes_of_timeslots_by_filter(self.timeslots, day=global_config.study_days-1)
+        indexes = get_indexes_of_timeslots_by_filter(self.timeslots, day=global_config.study_days-1)
         add_soft_constraint(self.model, copy.deepcopy(indexes), '==', 0, [1]*len(indexes), global_config.soft_constraints.last_day_in_week_penalty, -1, "LastDay")
     
     @_for_groups_or_teachers
@@ -942,7 +957,7 @@ class Solver:
             if penalty <= 0:
                 return
 
-            indexes = _get_indexes_of_timeslots_by_filter(self.timeslots, timeslot=timeslot)
+            indexes = get_indexes_of_timeslots_by_filter(self.timeslots, timeslot=timeslot)
             add_soft_constraint(self.model, copy.deepcopy(indexes), '==', 0, [1]*len(indexes), penalty, -1, "LastTSinDay " + str(timeslot) + " " + str(teacher_or_group))
 
         for ts, penalty in enumerate(personal_penalties):
@@ -956,7 +971,7 @@ class Solver:
             if penalty <= 0:
                 return
 
-            indexes = _get_indexes_of_timeslots_by_filter(self.timeslots, timeslot=timeslot)
+            indexes = get_indexes_of_timeslots_by_filter(self.timeslots, timeslot=timeslot)
             add_soft_constraint(self.model, copy.deepcopy(indexes), '==', 0, [1]*len(indexes), penalty, -1, "LastTSinDay")
 
         for ts, penalty in enumerate(global_config.soft_constraints.timeslots_penalty):
@@ -1143,6 +1158,7 @@ class Solver:
             method()
        # print(self.temp)
 
+        #return False, False, False
         #cplexlog.close()
         debug(self.model.variables.get_names())
         by_groups, by_teachers = self.__parse_output_and_create_schedule()
@@ -1197,6 +1213,6 @@ class Solver:
         return by_group, by_teacher
     
     def _get_groups_teachers_list(self):
-        ''' Returns tuple of (container, format for corpus tracking, column for filter) '''
-        return [(self.university.groups, corpus_tracker_of_groups_format, 'group_id'), 
-                (self.university.teachers, corpus_tracker_of_teachers_format, 'teacher_id')]
+        ''' Returns tuple of (container, column for filter) '''
+        return [(self.university.groups,   'group_id'), 
+                (self.university.teachers, 'teacher_id')]

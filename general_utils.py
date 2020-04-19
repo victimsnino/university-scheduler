@@ -91,33 +91,6 @@ time_slot_format =  week_prefix     +   "%d"    +\
 
 
 
-corpus_tracker_of_groups_format =   corpus_prefix    +   "%d"    +\
-                                    week_prefix      +   "%d"    +\
-                                    day_prefix       +   "%d"    +\
-                                    group_prefix     +   "%d"
-
-corpus_tracker_of_teachers_format = corpus_prefix    +   "%d"    +\
-                                    week_prefix      +   "%d"    +\
-                                    day_prefix       +   "%d"    +\
-                                    teacher_prefix   +   "%d"
-
-room_tracker_of_groups_format  =    room_prefix      +   "%d"    +\
-                                    corpus_tracker_of_groups_format
-
-room_tracker_of_teachers_format  =  room_prefix      +   "%d"    +\
-                                    corpus_tracker_of_teachers_format
-
-lesson_id_per_day_base_tracker_format       =   week_prefix     +   "%d"    +\
-                                                day_prefix      +   "%d"    +\
-                                                lesson_prefix   +   "%d"
-
-lesson_id_per_day_for_groups_tracker_format =   lesson_id_per_day_base_tracker_format   +\
-                                                group_prefix    +   "%d"
-
-lesson_id_per_day_for_teacher_tracker_format =  lesson_id_per_day_base_tracker_format   +\
-                                                teacher_prefix  +   "%d"
-
-
 teachers_per_lesson_format  =   lesson_prefix   + "%d"  +\
                                 teacher_prefix  + "%d"
 

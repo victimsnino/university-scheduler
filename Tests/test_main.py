@@ -626,7 +626,7 @@ def test_friend_lessons_diff_groups_common_lecture():
 
     solver = Solver(university)
     res, out , by_teacher = solver.solve()
-    open_as_html(out, university, by_teacher)
+    #open_as_html(out, university, by_teacher)
 
     for group, weeks in sorted(out.items()):
         for week, days in sorted(weeks.items()):
