@@ -291,4 +291,38 @@ def test_getter_return_not_reference():
     last_indexes = get_indexes_of_timeslots_by_filter(trackers)
     assert len(last_indexes) == 1
 
+def test_teacher_per_lesson():
+    tracker = TeacherPerLessonTrackerWrapper(lesson = 1, teacher = 2)
+    other = TeacherPerLessonTrackerWrapper(lesson = 1, teacher = 3)
+
+    assert tracker != other
+    assert other != tracker
+    assert tracker == tracker
+    assert other == other
+
+    with pytest.raises(Exception) as e:
+        TeacherPerLessonTrackerWrapper(lesson = 1)
+    with pytest.raises(Exception) as e:
+        TeacherPerLessonTrackerWrapper(teacher = 1)
+    with pytest.raises(Exception) as e:
+        TeacherPerLessonTrackerWrapper()
+
+def test_teacher_per_lesson_filter():
+    teacher_per_lessons = {}
+
+    teacher_per_lessons[0] = TeacherPerLessonTrackerWrapper(lesson= 1, teacher = 2)
+    teacher_per_lessons[1] = TeacherPerLessonTrackerWrapper(lesson= 2, teacher = 2)
+    teacher_per_lessons[2] = TeacherPerLessonTrackerWrapper(lesson= 3, teacher = 2)
+
+    teacher_per_lessons[3] = TeacherPerLessonTrackerWrapper(lesson= 1, teacher = 1)
+    teacher_per_lessons[4] = TeacherPerLessonTrackerWrapper(lesson= 2, teacher = 1)
+    teacher_per_lessons[5] = TeacherPerLessonTrackerWrapper(lesson= 3, teacher = 1)
+
+    assert len(get_teacher_per_lesson_tracker_by_filter(teacher_per_lessons, 1, 2)) == 1
+    assert len(get_teacher_per_lesson_tracker_by_filter(teacher_per_lessons, 2, 2)) == 1
+    assert len(get_teacher_per_lesson_tracker_by_filter(teacher_per_lessons, 4, 2)) == 0
+    assert len(get_teacher_per_lesson_tracker_by_filter(teacher_per_lessons, 4, 1)) == 0
+    assert len(get_teacher_per_lesson_tracker_by_filter(teacher_per_lessons, 2, 1)) == 1
+
+#
 #

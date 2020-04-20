@@ -123,3 +123,21 @@ class LessonTrackerWrapper(_WeekDayWrapper, _GroupIdOrTeacherIdWrapper):
         return  _is_equal(self.lesson, other.lesson) and \
                 _WeekDayWrapper.__eq__(self, other)  and \
                 _GroupIdOrTeacherIdWrapper.__eq__(self, other) 
+
+class TeacherPerLessonTrackerWrapper:
+    def __init__(self, lesson = -1, teacher = -1):
+        if lesson == -1 or teacher == -1:
+            raise Exception("Fields can't be -1")
+        
+        self.lesson = int(lesson)
+        self.teacher = int(teacher)
+
+    def __str__(self):
+        return teachers_per_lesson_format % (self.lesson, self.teacher)
+
+    def __eq__(self, other):
+        return _is_equal(self.lesson, other.lesson) and _is_equal(self.teacher, other.teacher)
+
+
+
+#

@@ -71,66 +71,14 @@ def add_soft_constraint(my_model, indexes_or_variables, sense, value, vals, pena
 
     add_constraint(my_model, indexes_or_variables, sense, value, vals)
 
-def calculate_valid(data_regex, source):
-    def process_part(data_regex, temp_data):
-        return [i for i in temp_data if data_regex.match(i)]
-    
-    if len(source) < 800:
-        return process_part(data_regex, source)
-        
-    threads = 2
-    part = int(len(source)/threads)
-
-    futures = []
-    with ThreadPoolExecutor(threads) as executor:
-        for thread in range(threads):
-            min = thread*part
-            max = (thread+1)*part
-            if thread == threads-1:
-                max = len(source)
-            temp_source = source[min:max]
-            futures.append(executor.submit(process_part, data_regex, temp_source))
-        output = []
-        for res in futures:
-            output += res.result()
-    return output
-
-def _get_indexes_by_name(variables, search, is_just_regex = False, temp_source = None):
-    if is_just_regex == False:
-        search = r'^' + search.replace('[', r'\[').replace(']', r'\]') + r'$'
-    
-    if temp_source is None:
-        source = variables.get_names()
-    else:
-        source = variables.get_names(temp_source)
-
-    global variables_filter_cache
-    cache = variables_filter_cache.setdefault(search, {}).setdefault(str(temp_source), {})
-    value = cache.get('cached_var', None)
-    if not value is None:
-        return copy.deepcopy(value)
-
-    debug(search)
-    data_regex = re.compile(search)
-
-    indexes = []
-    for name in source:
-        if not data_regex.match(name) is None:
-            indexes.append(variables.get_indices(name))
-
-    #indexes = calculate_valid(data_regex, source)
-    cache['cached_var'] = indexes
-
-    return copy.deepcopy(indexes)
-
 def _get_indexes_from_container_in_parallel(target, source, container):
-    def process_part(source):
+    def process_part(source, target, container):
         return [index for index in source if container.get(index, None) == target]
     
     if len(source) < 2000:
-        return process_part(source)
+        return process_part(source, target, container)
 
-    threads = 4
+    threads = 2 if len(source) < 10000 else 4
     part = int(len(source)/threads)
 
     futures = []
@@ -141,7 +89,7 @@ def _get_indexes_from_container_in_parallel(target, source, container):
             if thread == threads-1:
                 max = len(source)
             temp_source = source[min:max]
-            futures.append(executor.submit(process_part, temp_source))
+            futures.append(executor.submit(process_part, temp_source, target, container))
         output = []
         for res in futures:
             output += res.result()
@@ -188,6 +136,13 @@ def get_lesson_tracker_by_filter(lesson_tracker, week = -1, day = -1, lesson_id 
         source = list(lesson_tracker.keys())
 
     return _get_indexes_from_container(target, source, lesson_tracker)
+
+def get_teacher_per_lesson_tracker_by_filter(teach_per_less_tracker, lesson=-1, teacher=-1, source = None):
+    target = TeacherPerLessonTrackerWrapper(lesson=lesson, teacher=teacher)
+    if source is None:
+        source = list(teach_per_less_tracker.keys())
+
+    return _get_indexes_from_container(target, source, teach_per_less_tracker)
 
 def _get_variables_from_general_variable(variable):
     template = time_slot_format.replace("%d", r"(\d+)").replace("%s", "(.*)")
@@ -407,6 +362,7 @@ class Solver:
         self.corpus_trackers={}
         self.room_trackers={}
         self.lesson_trackers = {}
+        self.teacher_per_lesson_trackers = {}
 
     def __fill_lessons_to_time_slots(self):
         ''' 
@@ -494,7 +450,10 @@ class Solver:
         '''
         for teacher_i in lesson.teacher_indexes:
             lections_indexes = get_indexes_of_timeslots_by_filter(self.timeslots, source=source, teacher_id=teacher_i)
-            self.__fill_variables_helper(teachers_per_lesson_format % (lesson.self_index, teacher_i), lections_indexes, lesson.get_count())
+
+            tracker = TeacherPerLessonTrackerWrapper(lesson=lesson.self_index, teacher=teacher_i)
+            index = self.__fill_variables_helper(str(tracker), lections_indexes, lesson.get_count())
+            self.teacher_per_lesson_trackers[index] = tracker
 
     @_for_lessons
     @get_timeslots
@@ -649,7 +608,7 @@ class Solver:
         for lesson in self.university.lessons:
             indexes = []
             for teacher_i in lesson.teacher_indexes:
-                indexes += _get_indexes_by_name(self.model.variables, teachers_per_lesson_format % (lesson.self_index, teacher_i))
+                indexes += get_teacher_per_lesson_tracker_by_filter(self.teacher_per_lesson_trackers, lesson=lesson.self_index, teacher=teacher_i)
 
             add_constraint(self.model, indexes, '<=', 1)
 
@@ -755,8 +714,6 @@ class Solver:
                 if temp == -1:
                     penalty = -1
 
-            if penalty != -1:
-                self.temp.setdefault(str(lesson), {}).setdefault(day, set()).add(weeks)
             add_soft_constraint(self.model, temp_weeks, '==', weeks, [1]*(len(temp_weeks)-1) + [weeks], penalty, 1, name + " div " + str(div))
 
         if similar_type_only:
@@ -1126,7 +1083,6 @@ class Solver:
             warnings.warn(msg)
             print(msg)
 
-        self.temp = {}
         for method in progressbar.progressbar([ self.__fill_lessons_to_time_slots,
                                                 self.__fill_dummy_variables_for_tracking_corpuses,
                                                 self.__fill_dummy_variables_for_tracking_rooms,
@@ -1156,10 +1112,9 @@ class Solver:
             print()
             print(method.__name__)
             method()
-       # print(self.temp)
 
-        #return False, False, False
         #cplexlog.close()
+        #return False, False, False
         debug(self.model.variables.get_names())
         by_groups, by_teachers = self.__parse_output_and_create_schedule()
         return not by_groups is None, by_groups, by_teachers
@@ -1201,14 +1156,6 @@ class Solver:
 
                 day_dict_by_teacher = by_teacher.setdefault(int(teacher), {}).setdefault(week, {}).setdefault(day, {})
                 day_dict_by_teacher[ts] = [int(corpus), int(room), self.university.lessons[lesson], _type, group_ids]
-
-        # for group, weeks in sorted(by_group.items()):
-        #     for week, days in sorted(weeks.items()):
-        #         for day, tss in sorted(days.items()):
-        #             for ts, listt in sorted(tss.items()):
-        #                 corpus, room, lesson, _type, teacher, other_groups = listt
-        #                 print("Groups %s \t Week %d\tDay %d Corpus %d  TS %d  room %d\tlesson %s\ttype %s\t\t With %s  \tteacher %s" % 
-        #                       (group, week, day, corpus, ts, room, lesson, str(_type).split('.')[1], ",".join(str(i) for i in other_groups), self.university.teachers[teacher] ))
 
         return by_group, by_teacher
     
