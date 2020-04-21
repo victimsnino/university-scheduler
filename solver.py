@@ -72,27 +72,26 @@ def add_soft_constraint(my_model, indexes_or_variables, sense, value, vals, pena
     add_constraint(my_model, indexes_or_variables, sense, value, vals)
 
 def _get_indexes_from_container_in_parallel(target, source, container):
-    def process_part(source, target, container):
+    def process_part(source):
         return [index for index in source if container.get(index, None) == target]
     
-    if len(source) < 2000:
-        return process_part(source, target, container)
+    #if len(source) < 5000:
+    return process_part(source)
 
-    threads = 2 if len(source) < 10000 else 4
+    threads = 2 if len(source) < 20000 else 4
     part = int(len(source)/threads)
 
-    futures = []
+    sources = []
+    for thread in range(threads):
+        min = thread*part
+        max = (thread+1)*part
+        if thread == threads-1:
+            max = len(source)
+        sources.append(source[min:max])
     with ThreadPoolExecutor(threads) as executor:
-        for thread in range(threads):
-            min = thread*part
-            max = (thread+1)*part
-            if thread == threads-1:
-                max = len(source)
-            temp_source = source[min:max]
-            futures.append(executor.submit(process_part, temp_source, target, container))
         output = []
-        for res in futures:
-            output += res.result()
+        for res in executor.map(process_part, sources):
+            output += res
     return output
 
 def _get_indexes_from_container(target, source, container):
@@ -355,7 +354,8 @@ class Solver:
         self.model.parameters.simplex.limits.lowerobj.set(0)
         if global_config.timelimit_for_solve > 0:
             self.model.parameters.timelimit.set(global_config.timelimit_for_solve)
-        
+        self.model.parameters.emphasis.mip.set(2)
+
         global variables_filter_cache
         variables_filter_cache.clear()
         self.timeslots = {}
@@ -953,8 +953,8 @@ class Solver:
 
         sc = global_config.soft_constraints
         min_count           = sc.min_count_of_specific_lessons_during_day
-        if lesson.lesson_type == RoomType.LECTURE:
-            min_count = math.ceil(min_count/2)
+        #if lesson.lesson_type == RoomType.LECTURE:
+        #    min_count = math.ceil(min_count/2)
         min_count_penalty   = sc.min_count_of_specific_lessons_penalty
 
         max_count           = sc.max_count_of_specific_lessons_during_day

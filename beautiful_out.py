@@ -24,7 +24,6 @@ class tr:
     def __del__(self):
         add_text("</tr>")
            
-
 class td:
     def __init__(self, center = True):
         if center:
