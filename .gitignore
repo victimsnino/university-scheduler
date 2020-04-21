@@ -10,3 +10,6 @@ temp.txt
 temp.log
 prof/*
 Tests/__pycache__/*
+*.html
+*.json
+*.pyc

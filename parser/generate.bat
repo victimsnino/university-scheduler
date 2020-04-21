@@ -1,0 +1,1 @@
+python -m cogapp -d -o result.py ./dump_from_json.py
