@@ -118,13 +118,15 @@ def test_count_of_lessons():
     assert total_lessons == lecture_count
 
 def test_order_lessons():
-    university = University(0,5,2)
+    global_config.bachelor_time_slots_per_day = 5
+    global_config.time_slots_per_day_available = 5
+    university = University(0,1,1)
     university.add_room(1, 121, RoomType.PRACTICE,  30) 
     university.add_room(1, 120, RoomType.LECTURE,   100) 
     university.add_group("16-pmi", 30, GroupType.BACHELOR)
     university.add_teacher('Бычков И С')
-    lecture_count = 10
-    practice_count = 5
+    lecture_count = university.study_weeks*2
+    practice_count = university.study_weeks*4
     practice = university.add_lesson("прога", ['16-pmi'], practice_count, RoomType.PRACTICE,  ['Бычков И С'])
     lection = university.add_lesson("прога", ['16-pmi'], lecture_count, RoomType.LECTURE,  ['Бычков И С'])
 
@@ -134,6 +136,7 @@ def test_order_lessons():
     res, output , _ = solver.solve()
     assert res
 
+    open_as_html(output, university)
     index = 0
     for group, weeks in sorted(output.items()):
             for week, days in sorted(weeks.items()):

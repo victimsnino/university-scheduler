@@ -63,7 +63,7 @@ def print_schedule_for_group_or_teacher(university, weeks, is_teacher):
                 tr2 = tr()
                 td2 = td(False)
                 listt = weeks.get(week, {}).get(day, {}).get(ts, None)
-                add_text(str(ts+1) + " ")
+                add_text(str(ts+1) + ": ")
                 if listt:
                     print_lesson(listt, university, is_teacher)
                 del td2

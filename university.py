@@ -19,7 +19,8 @@ class Lesson:
         return self.count
 
     def __eq__(self, other):
-        return self.full_name() == other.full_name()
+        #return self.full_name() == other.full_name()
+        return self.__str__() == other.__str__()
 
     def full_name(self):
         ''' Lesson name + group name. Used as uniq index '''
@@ -78,6 +79,7 @@ class GroupOrTeacherBase:
         self.banned_time_slots = set()
         self.count_of_lessons = 0
         self.self_index = self_index
+        self.banned_corpuses = set()
 
     def add_lessons(self, count):
         self.count_of_lessons += count
@@ -92,6 +94,10 @@ class GroupOrTeacherBase:
             raise Exception("You should pass 1+ of parameters")
 
         self.banned_time_slots.add((week, day, timeslot))
+        return self
+    
+    def ban_corpus(self, corpus_number):
+        self.banned_corpuses.add(corpus_number)
         return self
     
 class Group(GroupOrTeacherBase):

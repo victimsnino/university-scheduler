@@ -72,7 +72,7 @@ def test_full_module_for_our_group():
 
     university.add_teacher('Колданов')
     university.add_teacher('Бабкина')
-    university.add_teacher('Фролова')
+    university.add_teacher('Фролова').ban_corpus(RADIK)
     university.add_teacher('Слащинин')
     university.add_teacher('Зеленов')
 

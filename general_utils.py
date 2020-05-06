@@ -43,6 +43,9 @@ class SoftConstraints:
 
         # 0 - disabled, < 0 - hard, > 0 soft
         self.lesson_after_lesson_penalty                    = 1
+
+        # 0 - disabled, < 0 - hard, > 0 soft
+        self.ban_corpuses_penalty                           = 1
         
         
 class Config:

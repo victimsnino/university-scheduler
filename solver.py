@@ -71,37 +71,14 @@ def add_soft_constraint(my_model, indexes_or_variables, sense, value, vals, pena
 
     add_constraint(my_model, indexes_or_variables, sense, value, vals)
 
-def _get_indexes_from_container_in_parallel(target, source, container):
-    def process_part(source):
-        return [index for index in source if container.get(index, None) == target]
-    
-    #if len(source) < 5000:
-    return process_part(source)
-
-    threads = 2 if len(source) < 20000 else 4
-    part = int(len(source)/threads)
-
-    sources = []
-    for thread in range(threads):
-        min = thread*part
-        max = (thread+1)*part
-        if thread == threads-1:
-            max = len(source)
-        sources.append(source[min:max])
-    with ThreadPoolExecutor(threads) as executor:
-        output = []
-        for res in executor.map(process_part, sources):
-            output += res
-    return output
-
 def _get_indexes_from_container(target, source, container):
     cache = variables_filter_cache.setdefault(str(target), {}).setdefault(str(source), {})
     value = cache.get('cached_var', None)
     if value:
         return copy.copy(value)
     
-    out = _get_indexes_from_container_in_parallel(target, source, container)
-    #out = [index for index in source if container.get(index, None) == target]
+    out = [index for index in source if container.get(index, None) == target]
+
     cache['cached_var'] = out
     return copy.copy(out)
 
@@ -115,33 +92,33 @@ def get_indexes_of_timeslots_by_filter(timeslots, week = -1, day = -1, corpus = 
 
     return _get_indexes_from_container(target, source, timeslots)
 
-def get_corpus_tracker_by_filter(corpus_tracker, corpus = -1, week = -1, day = -1, group_id = -1, teacher_id = -1, source = None):
+def get_corpus_tracker_by_filter(corpus_trackers, corpus = -1, week = -1, day = -1, group_id = -1, teacher_id = -1, source = None):
     target = CorpusTrackerWrapper(corpus=corpus, week=week, day=day, group_id=group_id, teacher_id=teacher_id)
     if source is None:
-        source = list(corpus_tracker.keys())
+        source = list(corpus_trackers.keys())
 
-    return _get_indexes_from_container(target, source, corpus_tracker)
+    return _get_indexes_from_container(target, source, corpus_trackers)
 
-def get_room_tracker_by_filter(room_tracker, room=-1, corpus = -1, week = -1, day = -1, group_id = -1, teacher_id = -1, source = None):
+def get_room_tracker_by_filter(room_trackers, room=-1, corpus = -1, week = -1, day = -1, group_id = -1, teacher_id = -1, source = None):
     target = RoomTrackerWrapper(room=room, corpus=corpus, week=week, day=day, group_id=group_id, teacher_id=teacher_id)
     if source is None:
-        source = list(room_tracker.keys())
+        source = list(room_trackers.keys())
 
-    return _get_indexes_from_container(target, source, room_tracker)
+    return _get_indexes_from_container(target, source, room_trackers)
                         
-def get_lesson_tracker_by_filter(lesson_tracker, week = -1, day = -1, lesson_id = -1, group_id = -1, teacher_id = -1, source = None):
+def get_lesson_tracker_by_filter(lesson_trackers, week = -1, day = -1, lesson_id = -1, group_id = -1, teacher_id = -1, source = None):
     target = LessonTrackerWrapper(week=week, day=day, lesson=lesson_id, group_id=group_id, teacher_id=teacher_id)
     if source is None:
-        source = list(lesson_tracker.keys())
+        source = list(lesson_trackers.keys())
 
-    return _get_indexes_from_container(target, source, lesson_tracker)
+    return _get_indexes_from_container(target, source, lesson_trackers)
 
-def get_teacher_per_lesson_tracker_by_filter(teach_per_less_tracker, lesson=-1, teacher=-1, source = None):
+def get_teacher_per_lesson_tracker_by_filter(teach_per_less_trackers, lesson=-1, teacher=-1, source = None):
     target = TeacherPerLessonTrackerWrapper(lesson=lesson, teacher=teacher)
     if source is None:
-        source = list(teach_per_less_tracker.keys())
+        source = list(teach_per_less_trackers.keys())
 
-    return _get_indexes_from_container(target, source, teach_per_less_tracker)
+    return _get_indexes_from_container(target, source, teach_per_less_trackers)
 
 def _get_variables_from_general_variable(variable):
     template = time_slot_format.replace("%d", r"(\d+)").replace("%s", "(.*)")
@@ -1071,6 +1048,16 @@ class Solver:
                                                             day_i,
                                                             name="LessByRooms "+str(teacher_or_group) + " Room "+ str(room_i))
 
+    @_for_groups_or_teachers
+    @get_corpus_tracker
+    def __soft_constraint_teacher_or_group_has_banned_corpuses(self, corpus_tracker_source=None, teacher_or_group=None, **kwargs):
+        if global_config.soft_constraints.ban_corpuses_penalty == 0:
+            return
+
+        for banned_corpus in teacher_or_group.banned_corpuses:
+            indexes = get_corpus_tracker_by_filter(self.corpus_trackers, corpus = banned_corpus, source=corpus_tracker_source)
+            add_soft_constraint(self.model, indexes, '==', 0, [1]*len(indexes), global_config.soft_constraints.ban_corpuses_penalty, -1, "Ban corpus")
+
     def solve(self):
         #cplexlog = open("cplex.log", 'w')
         #self.model.set_results_stream(cplexlog)
@@ -1107,6 +1094,7 @@ class Solver:
                                                 self.__soft_constraint_ban_windows_between_one_subject_during_day,
                                                 self.__soft_constraint_lessons_balanced_during_module_by_timeslots, 
                                                 self.__soft_constraint_lessons_balanced_during_module_by_rooms,
+                                                self.__soft_constraint_teacher_or_group_has_banned_corpuses,
                                                 self.model.solve
                                                 ]):
             print()
