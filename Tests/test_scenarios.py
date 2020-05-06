@@ -64,7 +64,7 @@ def test_full_module_for_our_group():
     LVOV = 1
     RADIK = 2
 
-    university.add_room(RADIK, 206, RoomType.LECTURE | RoomType.PRACTICE, 40) 
+    university.add_room(RADIK, 206, RoomType.LECTURE | RoomType.PRACTICE | RoomType.COMPUTER, 40) 
     university.add_room(RADIK, 303, RoomType.COMPUTER,  30)
     university.add_room(LVOV,  309, RoomType.PRACTICE,  25) 
 
