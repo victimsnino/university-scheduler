@@ -473,7 +473,7 @@ def test_lessons_grouped_by_lesson_id_during_week():
 
     solver = Solver(university)
     res, out , _ = solver.solve()
-    #open_as_html(out, university)
+    open_as_html(out, university)
 
     for group, weeks in sorted(out.items()):
         for week, days in sorted(weeks.items()):

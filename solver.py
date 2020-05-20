@@ -696,7 +696,8 @@ class Solver:
         if similar_type_only:
             return
 
-        dummy_vars = add_variables(self.model, obj=[0.01, 0],names=["dummy " + name + " day " + str(day)]*2)
+        dummy_vars = add_variables(self.model, obj=[global_config.soft_constraints.balanced_constraints.skip_balance_by_penalty, 0],
+                                               names=["dummy " + name + " day " + str(day)]*2)
 
         temp_weeks = up_down_weeks[0]+up_down_weeks[1] + dummy_vars
         weeks = active_weeks[0]+active_weeks[1]
@@ -920,7 +921,8 @@ class Solver:
     @_for_lessons_with_friends
     @get_timeslots
     @get_lesson_tracker
-    def __soft_constraint_reduce_ratio_of_lessons_and_subjects(self, source =  None, lesson_tracker_source= None, lesson=None, column=None, ith = None, week_i = None, day_i=None, **kwargs):
+    def __soft_constraint_reduce_ratio_of_lessons_and_subjects(self, source =  None, lesson_tracker_source= None, lesson=None, column=None, ith = None, week_i = None, day_i=None, teacher_or_group=None, **kwargs):
+        # TODO: Rewrite me pls
         if len(source) == 0:
             return
         
@@ -930,8 +932,8 @@ class Solver:
 
         sc = global_config.soft_constraints
         min_count           = sc.min_count_of_specific_lessons_during_day
-        #if lesson.lesson_type == RoomType.LECTURE:
-        #    min_count = math.ceil(min_count/2)
+        if lesson.lesson_type == RoomType.LECTURE:
+            min_count = math.ceil(min_count/2)
         min_count_penalty   = sc.min_count_of_specific_lessons_penalty
 
         max_count           = sc.max_count_of_specific_lessons_during_day
@@ -948,12 +950,12 @@ class Solver:
         if min_is_able and count_of_lessons > self.university.study_weeks/2: # if we can set it minimum as 2 lesons 1 time per 2 weeks
             indexes =  source+lesson_tracker_source
             vals = [1/min_count]*len(source)+[-1]*len(lesson_tracker_source)
-            add_soft_constraint(self.model, indexes, '>=', 0, vals, min_count_penalty, 1, "MinRatio w {0} d {1} l {2} c {3}".format(week_i, day_i, str(lesson), column))
+            add_soft_constraint(self.model, indexes, '>=', 0, vals, min_count_penalty, 1, "MinRatio w {0} d {1} l {2} c {3}".format(week_i, day_i, str(lesson), teacher_or_group))
         
         if max_is_able:            
             indexes =  source+lesson_tracker_source
             vals = [1/max_count]*len(source)+[-1]*len(lesson_tracker_source)
-            add_soft_constraint(self.model, indexes, '<=', 0, vals, max_count_penalty, -1, "MaxRatio w {0} d {1} l {2} c {3}".format(week_i, day_i, str(lesson), column))
+            add_soft_constraint(self.model, indexes, '<=', 0, vals, max_count_penalty, -1, "MaxRatio w {0} d {1} l {2} c {3}".format(week_i, day_i, str(lesson), teacher_or_group))
 
     @_for_week_and_day
     @get_timeslots

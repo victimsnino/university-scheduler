@@ -10,8 +10,8 @@ def add_text(text):
     message += text
 
 class table:
-    def __init__(self, name):
-        add_text('<table border="1" width="100%">')
+    def __init__(self, name, width= 100):
+        add_text(f'<table border="1" width="{width}%">')
         add_text( "<caption>"+name+"</caption>")
 
     def __del__(self):
@@ -77,13 +77,13 @@ def open_as_html(solution_by_groups, university, solution_by_teachers = None):
     f = open('output.html','w', encoding='utf-8')
 
     for group, weeks in sorted(solution_by_groups.items()):
-        tab = table(str(university.groups[group]))
+        tab = table(str(university.groups[group]), 50)
         print_schedule_for_group_or_teacher(university, weeks, False)
         del tab
     
     if solution_by_teachers:
         for teacher, weeks in sorted(solution_by_teachers.items()):
-            tab = table(str(university.teachers[teacher]))
+            tab = table(str(university.teachers[teacher]), 50)
             print_schedule_for_group_or_teacher(university, weeks, True)
             del tab
     
